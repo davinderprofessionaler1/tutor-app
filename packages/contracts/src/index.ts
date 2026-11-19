@@ -1,4 +1,18 @@
 export type CourseLevel = "Beginner" | "Intermediate" | "Advanced";
+export type LiveClassStatus = "Draft" | "Scheduled" | "Live" | "Completed" | "Cancelled";
+export interface LiveClassView {
+  id: string; title: string; description: string; objectives: string; instructions: string;
+  teacherId: string; teacherName: string; courseId: string | null; courseTitle: string; coursePrice: number;
+  thumbnailUrl: string; startsAt: string; timeZone: string; durationMinutes: number; capacity: number; price: number;
+  enrollmentDeadline: string | null; accessType: "individual" | "course" | "both"; status: LiveClassStatus;
+  startedAt: string | null; endedAt: string | null; chatEnabled: boolean;
+  enrollmentCount: number; availableSeats: number; accessible: boolean; enrollmentType: string | null;
+  canJoin: boolean; paymentStatus: string; revenue?: number;
+}
+export interface ClassroomParticipant { identity: string; name: string; role: "teacher" | "student"; raisedHand: boolean; microphone: boolean; camera: boolean }
+export interface ClassroomMessage { id: string; name: string; role: "teacher" | "student"; text: string; createdAt: string }
+export interface ClassroomSnapshot { ok: boolean; status: string; chatEnabled: boolean; microphone: boolean; camera: boolean; participants: ClassroomParticipant[]; messages: ClassroomMessage[] }
+export interface ClassroomJoin { token: string; url: string; identity: string; ticketId: string; title: string; startedAt: string }
 export type CourseAccess = "Lifetime" | "Fixed duration";
 
 export interface PublicBranding {
