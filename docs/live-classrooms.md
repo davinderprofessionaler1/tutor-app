@@ -122,9 +122,11 @@ Android Gradle settings already had device-build changes before module implement
 | Actual device/browser interaction                                     | Raise hand appeared in roster; teacher mic grant changed student control; teacher chat arrived on device; leave/rejoin created separate attendance sessions; teacher End disconnected the student |
 | Actual admin attendance report                                        | Aggregated 3m42s for the two student sessions, Offline after end                                                                                                                                  |
 
+A subsequent guided demo on the same date verified real teacher camera playback on Samsung A12 and teacher audio, confirmed by the user after unmuting the laptop system microphone. Both chat directions, hand raise, teacher microphone approval, fresh rejoin and teacher ending the session were demonstrated. A USB reconnection had removed the local ADB reverse mappings; restoring ports 4000/7882/7881 restored the student connection. This was USB development tunnel recovery, not an external-network TURN or automatic-reconnect certification. The demo ended with the phone showing Completed and 5m12s aggregate student attendance across two visits. Camera/microphone capture stopped at end, and the laptop system microphone was returned to its prior muted state.
+
 Evidence is stored outside Git in workspace `.tools`: `live-admin-connected.png`, `live-admin-attendance.png`, `live-admin-dashboard.png`, `live-student-connected.png`, `live-student-chat.png`, and test/build logs. Credentials and local class data are ignored.
 
-Camera/microphone capture, screen-sharing playback, TURN across external networks, Razorpay merchant sandbox transactions, a network PostgreSQL pool/restart, iOS and 10/25/50/100 participant media tests remain unverified. A two-person connection test is not a media-load result or 100-student readiness claim. See the staged runbook.
+Screen-sharing playback, TURN across external networks, Razorpay merchant sandbox transactions, a network PostgreSQL pool/restart, iOS and 10/25/50/100 participant media tests remain unverified. A two-person connection test is not a media-load result or 100-student readiness claim. See the staged runbook.
 
 ## Configuration and deployment preparation
 

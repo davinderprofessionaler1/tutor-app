@@ -1,12 +1,12 @@
 # Staged classroom acceptance and load tests
 
-Status: two real endpoints connected locally on 19 November 2026. Media capture/playback and larger stages have not been measured. Do not treat this as a 100-student certification.
+Status: two real endpoints connected locally on 19 November 2026. Teacher camera playback on the physical phone and teacher audio (user-confirmed) were demonstrated. Larger stages and sustained media measurements have not been performed. Do not treat this as a 100-student certification.
 
 Use a dedicated staging course, disposable test accounts and Razorpay **test** credentials. Each participant must use normal authenticated app admission, not arbitrary SDK tokens which bypass the enrollment/gateway path. Establish a browser teacher and real Android clients before adding synthetic clients with equivalent subscriptions. Do not run these workloads against production without approval.
 
 | Stage                  | Workload                                                                 | Current result                                                |
 | ---------------------- | ------------------------------------------------------------------------ | ------------------------------------------------------------- |
-| 2 endpoints            | One teacher and one student; join, hand, grants, chat, leave/rejoin, end | Connection/control flow passed locally. Actual AV not tested. |
+| 2 endpoints            | One teacher and one student; join, hand, grants, chat, leave/rejoin, end | Connection/control flow and teacher camera/audio passed locally; sustained load not measured. |
 | 10 students + teacher  | Teacher mic/camera + screen share; students subscribe to teacher         | Not run                                                       |
 | 25 students + teacher  | Above plus chat bursts and individual approved speaking                  | Not run                                                       |
 | 50 students + teacher  | Above plus mobile backgrounding, reconnects and two concurrent rooms     | Not run                                                       |
