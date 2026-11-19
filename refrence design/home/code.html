@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+
+<html lang="en"><head><meta charset="utf-8"/><meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"/><meta content="mobile_tab" name="shell-type"/><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/><link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/><style>@layer base{html,body{width:100%;margin:0;padding:0;background-color:#f5faff;}body{overscroll-behavior-y:none;-webkit-tap-highlight-color:transparent;font-family:'Inter',sans-serif;}.pb-safe{padding-bottom:env(safe-area-inset-bottom,0px);}.pt-safe{padding-top:env(safe-area-inset-top,0px);}main>:first-child{margin-top:0!important;}main>:last-child{margin-bottom:0!important;}}::-webkit-scrollbar{display:none;}#sidebar-drawer.open{transform:translateX(0);}#sidebar-backdrop.open{opacity:1;pointer-events:auto;}#logout-modal.open{opacity:1;pointer-events:auto;transform:scale(1);}</style><script src="https://cdn.tailwindcss.com"></script><script id="tailwind-config">tailwind.config = { darkMode: 'class', theme: { extend: { colors: { 'inverse-on-surface': '#e8f2fb', 'primary-container': '#25d366', 'tertiary-fixed-dim': '#72d8c8', 'secondary-fixed': '#a8f0e3', 'outline': '#6c7b6b', 'inverse-surface': '#283238', 'secondary-container': '#a5ede0', 'on-primary-fixed': '#002109', 'outline-variant': '#bbcbb9', 'primary-fixed': '#66ff8e', 'on-error-container': '#93000a', 'surface-container-lowest': '#ffffff', 'inverse-primary': '#3de273', 'on-tertiary-container': '#005249', 'on-surface-variant': '#3c4a3d', 'on-secondary': '#ffffff', 'error-container': '#ffdad6', 'surface-tint': '#006d2f', 'surface-container': '#e5eff8', 'on-tertiary': '#ffffff', 'on-primary': '#ffffff', 'background': '#f5faff', 'on-tertiary-fixed-variant': '#005047', 'tertiary-fixed': '#8ff4e3', 'on-secondary-container': '#226e63', 'on-background': '#131d23', 'on-primary-container': '#005523', 'surface-container-high': '#dfeaf2', 'on-primary-fixed-variant': '#005322', 'primary': '#006d2f', 'on-secondary-fixed-variant': '#005047', 'on-secondary-fixed': '#00201c', 'surface-dim': '#d1dbe4', 'on-error': '#ffffff', 'surface': '#f5faff', 'primary-fixed-dim': '#3de273', 'surface-container-highest': '#d9e4ec', 'secondary': '#1c695f', 'surface-bright': '#f5faff', 'surface-variant': '#d9e4ec', 'on-surface': '#131d23', 'secondary-fixed-dim': '#8cd4c7', 'tertiary-container': '#63c9b9', 'on-tertiary-fixed': '#00201c', 'surface-container-low': '#eaf5fe', 'tertiary': '#006b5f', 'error': '#ba1a1a' }, borderRadius: { 'DEFAULT': '0.25rem', 'lg': '0.5rem', 'xl': '0.75rem', 'full': '9999px' }, spacing: { 'margin': '1rem', 'space-lg': '1.5rem', 'space-xl': '2rem', 'space-xs': '0.25rem', 'margin-desktop': '2rem', 'gutter': '1rem', 'space-sm': '0.5rem', 'space-md': '1rem', 'margin-tablet': '1.5rem', 'space-2xl': '3rem' }, fontFamily: { 'label-lg': ['Inter'], 'label-md': ['Inter'], 'display-lg': ['Inter'], 'body-sm': ['Inter'], 'label-sm': ['Inter'], 'body-lg': ['Inter'], 'body-md': ['Inter'], 'headline-lg': ['Inter'], 'headline-md': ['Inter'], 'headline-sm': ['Inter'] }, fontSize: { 'label-lg': ['14px', { lineHeight: '20px', letterSpacing: '0.01em', fontWeight: '600' }], 'label-md': ['12px', { lineHeight: '16px', letterSpacing: '0.02em', fontWeight: '500' }], 'display-lg': ['32px', { lineHeight: '40px', letterSpacing: '-0.02em', fontWeight: '700' }], 'body-sm': ['13px', { lineHeight: '18px', letterSpacing: '0.01em', fontWeight: '400' }], 'label-sm': ['11px', { lineHeight: '14px', letterSpacing: '0.03em', fontWeight: '500' }], 'body-lg': ['16px', { lineHeight: '24px', letterSpacing: '0em', fontWeight: '400' }], 'body-md': ['14px', { lineHeight: '20px', letterSpacing: '0em', fontWeight: '400' }], 'headline-lg': ['24px', { lineHeight: '32px', letterSpacing: '-0.015em', fontWeight: '600' }], 'headline-md': ['20px', { lineHeight: '28px', letterSpacing: '-0.01em', fontWeight: '600' }], 'headline-sm': ['18px', { lineHeight: '24px', letterSpacing: '0em', fontWeight: '600' }] } } } };</script><style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head><body class="bg-surface text-on-surface flex flex-col min-h-screen relative selection:bg-primary-container selection:text-on-primary-fixed"><header class="fixed top-0 w-full z-40 pt-safe bg-surface/85 backdrop-blur-xl shadow-[0_1px_8px_rgba(0,0,0,0.03)]"><div class="h-16 px-margin flex items-center justify-between"><button aria-label="Open Menu" class="w-11 h-11 flex items-center justify-center rounded-full text-on-surface hover:bg-surface-container active:scale-95 transition-all" id="open-sidebar-btn"><span class="material-symbols-outlined text-[24px]">menu</span></button><div class="flex items-center gap-space-xs"><img alt="LearnHub Logo" class="h-8 w-auto object-contain" src="https://lh3.googleusercontent.com/aida/ALJJyrCYgrW0nKNFD4--ORMdnbohteXbTWTLvlPUTnYJVqH_yvc6CHV8pF2l8Ei7tQG-g7UIgwpx35G7xcAb0ZTF8Mg6ygwa6nvx-KkI85bH1w5biqTnHuo66_b9AvEknMmMcZijfTPc_7CnECDd3MSmjRq69owcVd9Evh1bUGdWarIS0wTfxqVzDItdZOPTpDz3jYbyI9-m-ixWFPhQ0qxH8-e-PvXDRPzU7nZu1IRJQFfRyQ"/><span class="sr-only">Home</span></div><button aria-label="Log Out" class="w-11 h-11 flex items-center justify-center rounded-full text-on-surface-variant hover:text-error hover:bg-error-container/40 active:scale-95 transition-all" id="open-logout-btn"><span class="material-symbols-outlined text-[24px]">logout</span></button></div></header><div class="fixed inset-0 z-50 bg-black/30 opacity-0 pointer-events-none transition-opacity duration-300 backdrop-blur-[2px]" id="sidebar-backdrop"></div><aside class="fixed top-0 left-0 bottom-0 z-50 w-[70%] max-w-[320px] bg-surface-container-lowest shadow-2xl flex flex-col -translate-x-full transition-transform duration-300 ease-out pt-safe pb-safe" id="sidebar-drawer"><div class="p-space-lg bg-surface-container-low flex flex-col gap-space-sm"><div class="flex items-center justify-between"><img alt="Profile" class="w-14 h-14 rounded-full object-cover ring-2 ring-primary-container shadow-sm" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCAsp0Y-7dNKkFqyYtlvn3H3J7KSv-GLG6RUhTavNebRq5i2SrR8mBiB4Icd3ltOdMW1w9eV0XjDLzuT-P3jL4oeWPjUHIUdRNAp61X_xowy64swGkxlhRJ1ev4CKzwhyonH_3DG7baBX8NX9yzPHmflwiA_jYLOG1mvZmtq8FTN7c5V4aHtAavPrjhmUPPRyePunrXCYNsnvvpgbufMsVhjuqPCmhThJCNnt7QqLJ0"/><button aria-label="Close Sidebar" class="w-11 h-11 flex items-center justify-center rounded-full text-on-surface-variant hover:bg-surface-container active:scale-95 transition-all" id="close-sidebar-btn"><span class="material-symbols-outlined text-[22px]">close</span></button></div><div class="mt-space-xs"><h2 class="font-headline-sm text-headline-sm text-on-surface">Sarah Jenkins</h2><p class="font-label-sm text-label-sm text-secondary font-medium mt-0.5">Product Designer &amp; Employee</p><p class="font-body-sm text-body-sm text-outline mt-0.5 truncate">sarah.j@acmecorp.com</p></div></div><nav class="flex-1 py-space-md px-space-sm overflow-y-auto flex flex-col gap-1"><a class="flex items-center gap-space-md px-space-md h-12 rounded-xl text-on-surface-variant hover:bg-surface-container hover:text-on-surface font-label-lg text-label-lg transition-colors" data-path="home" href="#"><span class="material-symbols-outlined text-[22px]">home</span><span>Home</span></a><a class="flex items-center gap-space-md px-space-md h-12 rounded-xl text-on-surface-variant hover:bg-surface-container hover:text-on-surface font-label-lg text-label-lg transition-colors" data-path="my-courses" href="#"><span class="material-symbols-outlined text-[22px]">school</span><span>My Courses</span></a><a class="flex items-center gap-space-md px-space-md h-12 rounded-xl text-on-surface-variant hover:bg-surface-container hover:text-on-surface font-label-lg text-label-lg transition-colors" data-path="profile" href="#"><span class="material-symbols-outlined text-[22px]">person</span><span>Profile</span></a><div class="my-space-sm mx-space-md h-[1px] bg-surface-container-high"></div><a class="flex items-center gap-space-md px-space-md h-12 rounded-xl text-on-surface-variant hover:bg-surface-container hover:text-on-surface font-label-lg text-label-lg transition-colors" href="#"><span class="material-symbols-outlined text-[22px]">help</span><span>Help &amp; Support</span></a><a class="flex items-center gap-space-md px-space-md h-12 rounded-xl text-on-surface-variant hover:bg-surface-container hover:text-on-surface font-label-lg text-label-lg transition-colors" href="#"><span class="material-symbols-outlined text-[22px]">settings</span><span>Settings</span></a></nav><div class="p-space-md bg-surface-container-lowest mt-auto"><button class="w-full flex items-center gap-space-md px-space-md h-12 rounded-xl text-error hover:bg-error-container/30 font-label-lg text-label-lg transition-colors" id="sidebar-logout-btn"><span class="material-symbols-outlined text-[22px]">logout</span><span>Log Out</span></button></div></aside><div class="fixed inset-0 z-50 bg-black/40 opacity-0 pointer-events-none transition-opacity duration-200 flex items-center justify-center p-margin" id="logout-modal-backdrop"><div class="w-full max-w-[320px] bg-surface-container-lowest rounded-2xl p-space-lg shadow-2xl scale-95 opacity-0 pointer-events-none transition-all duration-200 flex flex-col items-center text-center" id="logout-modal"><div class="w-12 h-12 rounded-full bg-error-container text-error flex items-center justify-center mb-space-sm"><span class="material-symbols-outlined text-[26px]">logout</span></div><h3 class="font-headline-sm text-headline-sm text-on-surface">Logout?</h3><p class="font-body-md text-body-md text-on-surface-variant mt-1 mb-space-lg">Do you want to logout?</p><div class="flex w-full items-center gap-space-sm"><button class="flex-1 h-11 rounded-full bg-surface-container hover:bg-surface-container-high text-on-surface font-label-lg text-label-lg transition-colors active:scale-95" id="cancel-logout-btn">Cancel</button><button class="flex-1 h-11 rounded-full bg-primary-container text-on-primary-fixed font-label-lg text-label-lg shadow-sm hover:brightness-95 active:scale-95 transition-all" id="confirm-logout-btn">Yes, Logout</button></div></div></div><main class="flex-1 flex flex-col relative w-full pt-16 pb-28 bg-surface px-margin"><div class="flex flex-col w-full pb-6 space-y-6">
+<!-- Dynamic Greeting & Daily Pulse -->
+<section class="flex flex-col space-y-1">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-secondary text-[22px]" style="font-variation-settings: 'FILL' 1;">wb_sunny</span>
+<h1 class="font-headline-md text-headline-md text-on-surface tracking-tight" id="dynamic-greeting">Good Morning, Sarah</h1>
+<span class="inline-block animate-bounce text-base">👋</span>
+</div>
+<div class="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-secondary-container/60 text-on-secondary-container">
+<span class="w-2 h-2 rounded-full bg-primary-container animate-pulse"></span>
+<span class="font-label-sm text-label-sm font-semibold">Live Track</span>
+</div>
+</div>
+<p class="font-body-md text-body-md text-on-surface-variant flex items-center gap-1.5">
+<span>You have</span>
+<span class="font-label-md text-label-md px-2 py-0.5 rounded-full bg-surface-container-high text-primary font-bold">3 assigned courses</span>
+<span>in progress</span>
+</p>
+</section>
+<!-- Section 1: Auto-sliding Promotional / Featured Banner Carousel -->
+<section class="flex flex-col space-y-2.5">
+<div class="relative w-full overflow-hidden rounded-2xl shadow-sm bg-surface-container-lowest">
+<!-- Carousel Slider Track -->
+<div class="flex transition-transform duration-500 ease-out will-change-transform" id="carousel-track">
+<!-- Slide 1: Cyber Security -->
+<div class="w-full flex-shrink-0 p-space-md flex flex-col justify-between relative bg-gradient-to-br from-surface-container-lowest via-surface-container-low to-secondary-container/30 rounded-2xl min-h-[174px]">
+<div class="flex items-start justify-between gap-3 relative z-10">
+<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-primary-container text-on-primary-fixed font-label-sm text-label-sm font-bold shadow-xs">
+<span class="material-symbols-outlined text-[14px]">verified</span>
+              Mandatory
+            </span>
+<span class="font-label-sm text-label-sm text-on-surface-variant bg-surface-container-highest/60 px-2 py-0.5 rounded-full">Due in 4 days</span>
+</div>
+<div class="grid grid-cols-12 gap-3 items-center my-1 relative z-10">
+<div class="col-span-8 flex flex-col space-y-1">
+<h2 class="font-headline-sm text-headline-sm text-on-surface leading-snug line-clamp-2">
+                Q3 Cyber Security &amp; Compliance Workshop
+              </h2>
+<p class="font-body-sm text-body-sm text-on-surface-variant line-clamp-1">
+                Zero trust protocols &amp; threat reporting
+              </p>
+</div>
+<div class="col-span-4 flex justify-end">
+<div class="w-16 h-16 rounded-xl overflow-hidden shadow-sm bg-surface-container-high flex-shrink-0">
+<img class="w-full h-full object-cover" data-alt="A modern, high-tech cybersecurity illustration featuring illuminated cryptographic locks, subtle mint green glowing network nodes, clean glassmorphic aesthetics on a bright neutral studio backdrop." src="https://lh3.googleusercontent.com/aida-public/AB6AXuB9fdmpF8FlcpUv_bvyNguOmt12CMkw88I8fSdvww5MopbcHt8wYhzKO5qRypw4gJy8mFK19lm5zx0nYTiRCxNxDnJH_bB9q8pMonsDh_UBeuY_bsV9t1NxQ1aboWe8LV3HU2BM8EBWwc_7aVEf_X0ta0E-ep8hbyGownQRBKfeOUjs_NksZz8s2KxcoSk9R7hXtTjoqg3QvG957BTYpTIHRHvLrYFBfDV9MmFMn022"/>
+</div>
+</div>
+</div>
+<div class="flex items-center justify-between pt-1 relative z-10">
+<div class="flex items-center gap-1.5 text-secondary">
+<span class="material-symbols-outlined text-[18px]">timer</span>
+<span class="font-label-sm text-label-sm">45 mins cert</span>
+</div>
+<button class="inline-flex items-center gap-1 px-3 py-1.5 rounded-full bg-primary-container text-on-primary-fixed hover:bg-primary transition-colors font-label-md text-label-md active:scale-95 shadow-xs">
+<span>Start Now</span>
+<span class="material-symbols-outlined text-[16px]">arrow_forward</span>
+</button>
+</div>
+</div>
+<!-- Slide 2: AI Workflow Integration -->
+<div class="w-full flex-shrink-0 p-space-md flex flex-col justify-between relative bg-gradient-to-br from-surface-container-lowest via-surface-container-low to-tertiary-fixed/30 rounded-2xl min-h-[174px]">
+<div class="flex items-start justify-between gap-3 relative z-10">
+<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-secondary-container text-on-secondary-container font-label-sm text-label-sm font-bold shadow-xs">
+<span class="material-symbols-outlined text-[14px]">auto_awesome</span>
+              Recommended
+            </span>
+<span class="font-label-sm text-label-sm text-on-surface-variant bg-surface-container-highest/60 px-2 py-0.5 rounded-full">New Batch</span>
+</div>
+<div class="grid grid-cols-12 gap-3 items-center my-1 relative z-10">
+<div class="col-span-8 flex flex-col space-y-1">
+<h2 class="font-headline-sm text-headline-sm text-on-surface leading-snug line-clamp-2">
+                Enterprise AI Assisted Workflows
+              </h2>
+<p class="font-body-sm text-body-sm text-on-surface-variant line-clamp-1">
+                Practical prompt architecture for cross-functional teams
+              </p>
+</div>
+<div class="col-span-4 flex justify-end">
+<div class="w-16 h-16 rounded-xl overflow-hidden shadow-sm bg-surface-container-high flex-shrink-0">
+<img class="w-full h-full object-cover" data-alt="A clean, minimalist 3D rendering of generative neural waveforms intersecting with modern corporate laptop interface, styled in emerald and seafoam tones with luminous ambient light." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCXlSmmYL6vlkljBkB1QE0kKAta_Ie2ywatq0b6REletR_uuk_imZmI25rdnwjyWoy0jC7CCTEQnQx5j1FT0Rl1Uohvn0o9J6V0KfdgJ5gUlAbxnBuTGbielwaBsfNwagisa2C3oryHP2kiBv3TYw_28GdrvzaYz0VgbQ8qHneNlFpO9YNTjsioQ4xoaf5kWI6TDjz5emcojNoxVJbYSLQYyUfV6-33DhfrIlrPz94Z"/>
+</div>
+</div>
+</div>
+<div class="flex items-center justify-between pt-1 relative z-10">
+<div class="flex items-center gap-1.5 text-secondary">
+<span class="material-symbols-outlined text-[18px]">group</span>
+<span class="font-label-sm text-label-sm">320 enrolled</span>
+</div>
+<button class="inline-flex items-center gap-1 px-3 py-1.5 rounded-full bg-surface-container-highest text-on-surface hover:bg-surface-container-high transition-colors font-label-md text-label-md active:scale-95 shadow-xs">
+<span>View Module</span>
+<span class="material-symbols-outlined text-[16px]">chevron_right</span>
+</button>
+</div>
+</div>
+<!-- Slide 3: Design Thinking Micro-Sprint -->
+<div class="w-full flex-shrink-0 p-space-md flex flex-col justify-between relative bg-gradient-to-br from-surface-container-lowest via-surface-container-low to-primary-fixed/20 rounded-2xl min-h-[174px]">
+<div class="flex items-start justify-between gap-3 relative z-10">
+<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-tertiary-container text-on-tertiary-container font-label-sm text-label-sm font-bold shadow-xs">
+<span class="material-symbols-outlined text-[14px]">lightbulb</span>
+              Skill Boost
+            </span>
+<span class="font-label-sm text-label-sm text-on-surface-variant bg-surface-container-highest/60 px-2 py-0.5 rounded-full">Interactive</span>
+</div>
+<div class="grid grid-cols-12 gap-3 items-center my-1 relative z-10">
+<div class="col-span-8 flex flex-col space-y-1">
+<h2 class="font-headline-sm text-headline-sm text-on-surface leading-snug line-clamp-2">
+                Rapid Product Prototyping
+              </h2>
+<p class="font-body-sm text-body-sm text-on-surface-variant line-clamp-1">
+                Collaborative feedback loops &amp; rapid testing
+              </p>
+</div>
+<div class="col-span-4 flex justify-end">
+<div class="w-16 h-16 rounded-xl overflow-hidden shadow-sm bg-surface-container-high flex-shrink-0">
+<img class="w-full h-full object-cover" data-alt="A sleek flat-lay workstation with stylus, mobile wireframe cards, translucent glass tokens, and soft green notes on an ivory matte desk surface." src="https://lh3.googleusercontent.com/aida-public/AB6AXuB5O1jh9_wZyDzea2qLxEQbmZQs8AAp4MnTf8X_1A9iMFuQ_HcwuR83mdYSMWACe6GRj7J72lQgVaiG7ChMy3GJJdSt7uSS8zzZ4dsTvKGz78x2Rn7m19YYVPZFZstc1OTPRAQ3T3MEpnCOFNc99WBNEHZIDfcs0GTagttlJ60EcWosxV6iRAGVNtce0LRaWCJhGa4RfBff_Z--KPffN-gWS-E-kCleZg-9H2Vcb7H8"/>
+</div>
+</div>
+</div>
+<div class="flex items-center justify-between pt-1 relative z-10">
+<div class="flex items-center gap-1.5 text-secondary">
+<span class="material-symbols-outlined text-[18px]">verified_user</span>
+<span class="font-label-sm text-label-sm">Leadership Ready</span>
+</div>
+<button class="inline-flex items-center gap-1 px-3 py-1.5 rounded-full bg-primary-container text-on-primary-fixed hover:bg-primary transition-colors font-label-md text-label-md active:scale-95 shadow-xs">
+<span>Enroll</span>
+<span class="material-symbols-outlined text-[16px]">add</span>
+</button>
+</div>
+</div>
+</div>
+<!-- Pagination Dot Indicators -->
+<div class="absolute bottom-2.5 left-0 right-0 flex justify-center items-center gap-1.5 z-20 pointer-events-none">
+<button aria-label="Go to slide 1" class="w-5 h-1.5 rounded-full bg-primary-container transition-all duration-300 pointer-events-auto" id="dot-0"></button>
+<button aria-label="Go to slide 2" class="w-1.5 h-1.5 rounded-full bg-on-surface-variant/30 hover:bg-on-surface-variant/60 transition-all duration-300 pointer-events-auto" id="dot-1"></button>
+<button aria-label="Go to slide 3" class="w-1.5 h-1.5 rounded-full bg-on-surface-variant/30 hover:bg-on-surface-variant/60 transition-all duration-300 pointer-events-auto" id="dot-2"></button>
+</div>
+</div>
+</section>
+<!-- Section 2: Recently Added Tutorials -->
+<section class="flex flex-col space-y-3">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-2">
+<h2 class="font-headline-sm text-headline-sm text-on-surface tracking-tight">Recently Added Tutorials</h2>
+<span class="w-1.5 h-1.5 rounded-full bg-primary-container"></span>
+</div>
+<a class="font-label-md text-label-md text-secondary hover:text-primary transition-colors flex items-center" href="#">
+<span>View All</span>
+<span class="material-symbols-outlined text-[18px]">chevron_right</span>
+</a>
+</div>
+<!-- Horizontal Scrolling Row -->
+<div class="flex gap-3.5 overflow-x-auto pb-2 -mx-margin px-margin scrollbar-none snap-x snap-mandatory">
+<!-- Tutorial Card 1 -->
+<article class="w-[220px] flex-shrink-0 snap-start bg-surface-container-lowest rounded-2xl p-2.5 flex flex-col shadow-sm hover:shadow-md transition-shadow group cursor-pointer">
+<div class="relative w-full aspect-video rounded-xl overflow-hidden bg-surface-container-high mb-2.5">
+<img class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" data-alt="A clean digital design workspace showcasing modular component library tokens, color palettes, and structured typography charts in quiet mint and white hues." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCfkUoPWuSkiJT3O4opv3K46jo1T-KePBFCwE2TYrazK8dSubkj8xDw7TnLdDdekAKlXutKqFq6aeSYc29ZL_u7h7z1NI8jSGjVU0KTvMaidbPW7ztru6tjZ88b7oCrOHv68OQWdLwPAaBO7LnuLy4bx9i2DA7wI6GIA_dO3m06rkI3RB3baRJI6h6ENTrbxBAQ-t61PVFn0ipZQkavxti7G1yG12zXyK_ijhShByr3"/>
+<div class="absolute inset-0 bg-on-surface/20 flex items-center justify-center backdrop-blur-[1px]">
+<div class="w-10 h-10 rounded-full bg-surface-container-lowest/90 backdrop-blur-md flex items-center justify-center text-primary shadow-md group-hover:scale-110 transition-transform">
+<span class="material-symbols-outlined text-[24px]" style="font-variation-settings: 'FILL' 1;">play_arrow</span>
+</div>
+</div>
+<!-- Duration Badge -->
+<div class="absolute bottom-2 right-2 px-2 py-0.5 rounded-md bg-inverse-surface/80 backdrop-blur-md text-inverse-on-surface font-label-sm text-label-sm font-medium">
+            14:20
+          </div>
+<!-- HD Tag -->
+<div class="absolute top-2 left-2 px-1.5 py-0.5 rounded bg-surface-container-lowest/85 backdrop-blur-sm text-on-surface font-label-sm text-label-sm font-bold">
+            1080p HD
+          </div>
+</div>
+<div class="flex flex-col flex-1 justify-between">
+<div>
+<span class="inline-block font-label-sm text-label-sm text-secondary font-semibold uppercase tracking-wider mb-0.5">Design Dept</span>
+<h3 class="font-label-lg text-label-lg text-on-surface line-clamp-1 group-hover:text-primary transition-colors">Design Systems at Scale</h3>
+</div>
+<div class="flex items-center gap-1.5 text-on-surface-variant font-body-sm text-body-sm mt-2">
+<span class="material-symbols-outlined text-[16px] text-outline">schedule</span>
+<span>Added today</span>
+</div>
+</div>
+</article>
+<!-- Tutorial Card 2 -->
+<article class="w-[220px] flex-shrink-0 snap-start bg-surface-container-lowest rounded-2xl p-2.5 flex flex-col shadow-sm hover:shadow-md transition-shadow group cursor-pointer">
+<div class="relative w-full aspect-video rounded-xl overflow-hidden bg-surface-container-high mb-2.5">
+<img class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" data-alt="An agile sprint scrum planning glass board with pastel sticky notes, progress checklists, and team collaboration icons in clean natural lighting." src="https://lh3.googleusercontent.com/aida-public/AB6AXuC_7h5y8lG-TkLNQhWTD3yPeRwrTspI4RuuGXJAtM-VM3jh9R2ZMkYO_ezshfrWC6CZC5A0dDUfkM9-aW1V2LmJONXI5vBiIf0XvFLJ7Rkjm36UAtcOgGOVtTN5JqdnkkEZcnTCiOtbX0HUmquiduce_PxtTghJGqVVVdI9nJZJVahF6BX8oxlllqDCwTAR3Syodu8mCxQAayCdQChXlL9u2Pd2BG6iHkLjOPlxTbBv"/>
+<div class="absolute inset-0 bg-on-surface/20 flex items-center justify-center backdrop-blur-[1px]">
+<div class="w-10 h-10 rounded-full bg-surface-container-lowest/90 backdrop-blur-md flex items-center justify-center text-primary shadow-md group-hover:scale-110 transition-transform">
+<span class="material-symbols-outlined text-[24px]" style="font-variation-settings: 'FILL' 1;">play_arrow</span>
+</div>
+</div>
+<div class="absolute bottom-2 right-2 px-2 py-0.5 rounded-md bg-inverse-surface/80 backdrop-blur-md text-inverse-on-surface font-label-sm text-label-sm font-medium">
+            08:45
+          </div>
+<div class="absolute top-2 left-2 px-1.5 py-0.5 rounded bg-surface-container-lowest/85 backdrop-blur-sm text-on-surface font-label-sm text-label-sm font-bold">
+            1080p HD
+          </div>
+</div>
+<div class="flex flex-col flex-1 justify-between">
+<div>
+<span class="inline-block font-label-sm text-label-sm text-secondary font-semibold uppercase tracking-wider mb-0.5">Agile Team</span>
+<h3 class="font-label-lg text-label-lg text-on-surface line-clamp-1 group-hover:text-primary transition-colors">Effective Sprint Retrospectives</h3>
+</div>
+<div class="flex items-center gap-1.5 text-on-surface-variant font-body-sm text-body-sm mt-2">
+<span class="material-symbols-outlined text-[16px] text-outline">schedule</span>
+<span>Yesterday</span>
+</div>
+</div>
+</article>
+<!-- Tutorial Card 3 -->
+<article class="w-[220px] flex-shrink-0 snap-start bg-surface-container-lowest rounded-2xl p-2.5 flex flex-col shadow-sm hover:shadow-md transition-shadow group cursor-pointer">
+<div class="relative w-full aspect-video rounded-xl overflow-hidden bg-surface-container-high mb-2.5">
+<img class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" data-alt="A clean modern regulatory compliance desk with encrypted tablet, privacy badge emblem, and organized documents styled in soothing sage green shades." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBaSpl6utDPLicg4jJwi9w4xGSP9-Ey-GWClRaaqHMalrv7bNbD5u_cQ864pZeehmqUWVc4T2Cuq8FiRsHc5Vc2PqXFQjbnAJMU0mpV9WavH02nHkxqwvl2j6ZZtZGT-QktPzvV1ZwY25LxbqjnmFHfKj3KXtRwcZkfz-dqUprjVBFjkOGgPNjuPZ0Vj21LMUcD_aRTlzYMNAtPOaIsQfQblVKo28ePXEH77OfxtGgD"/>
+<div class="absolute inset-0 bg-on-surface/20 flex items-center justify-center backdrop-blur-[1px]">
+<div class="w-10 h-10 rounded-full bg-surface-container-lowest/90 backdrop-blur-md flex items-center justify-center text-primary shadow-md group-hover:scale-110 transition-transform">
+<span class="material-symbols-outlined text-[24px]" style="font-variation-settings: 'FILL' 1;">play_arrow</span>
+</div>
+</div>
+<div class="absolute bottom-2 right-2 px-2 py-0.5 rounded-md bg-inverse-surface/80 backdrop-blur-md text-inverse-on-surface font-label-sm text-label-sm font-medium">
+            21:10
+          </div>
+<div class="absolute top-2 left-2 px-1.5 py-0.5 rounded bg-surface-container-lowest/85 backdrop-blur-sm text-on-surface font-label-sm text-label-sm font-bold">
+            1080p HD
+          </div>
+</div>
+<div class="flex flex-col flex-1 justify-between">
+<div>
+<span class="inline-block font-label-sm text-label-sm text-secondary font-semibold uppercase tracking-wider mb-0.5">Legal &amp; Compliance</span>
+<h3 class="font-label-lg text-label-lg text-on-surface line-clamp-1 group-hover:text-primary transition-colors">Data Privacy &amp; GDPR Basics</h3>
+</div>
+<div class="flex items-center gap-1.5 text-on-surface-variant font-body-sm text-body-sm mt-2">
+<span class="material-symbols-outlined text-[16px] text-outline">schedule</span>
+<span>2 days ago</span>
+</div>
+</div>
+</article>
+</div>
+</section>
+<!-- Section 3: Continue Watching -->
+<section class="flex flex-col space-y-3">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-2">
+<h2 class="font-headline-sm text-headline-sm text-on-surface tracking-tight">Continue Watching</h2>
+<span class="font-label-sm text-label-sm text-secondary font-semibold px-2 py-0.5 rounded-full bg-secondary-container/50">2 in progress</span>
+</div>
+<button class="font-label-md text-label-md text-on-surface-variant hover:text-on-surface transition-colors">
+        Manage
+      </button>
+</div>
+<!-- Vertical List of In-progress Series Cards -->
+<div class="flex flex-col space-y-3">
+<!-- Series Card 1 -->
+<article class="bg-surface-container-lowest rounded-2xl p-space-md shadow-sm hover:shadow transition-all group flex flex-col space-y-3">
+<div class="flex gap-3 items-start">
+<div class="relative w-24 h-20 rounded-xl overflow-hidden bg-surface-container-high flex-shrink-0 shadow-xs">
+<img class="w-full h-full object-cover" data-alt="A modern executive meeting room with architectural wood accents, soft daylight through glass facade, and a confident leader presenting design metrics on a pristine display." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCCsDNrQ3D8mAtvaeR9lanzn3K_4nrDrUS81M6uMqkeL4Cpae0VN5rs2RXnUHJIU2AF7tALiZhBQ2Ed7xyc4DZR4Wt0P78KNj7GcZxzyMf6Fl__1nT6xavx1aH376pTz_dcofExUtHmvUqE8_PY3LdNZ0cX6a-bb3OoWCg5oc9ifL0Qp9xHTY0_TBBozV-skEKV2k4JjjMS0qA_oVlHlRJEjqC5tl69UsYFYFgHOpgj"/>
+<div class="absolute inset-0 bg-on-surface/20 flex items-center justify-center">
+<div class="w-8 h-8 rounded-full bg-surface-container-lowest/90 backdrop-blur-sm flex items-center justify-center text-primary shadow-xs">
+<span class="material-symbols-outlined text-[20px]" style="font-variation-settings: 'FILL' 1;">play_arrow</span>
+</div>
+</div>
+</div>
+<div class="flex-1 min-w-0 flex flex-col justify-between self-stretch">
+<div>
+<span class="font-label-sm text-label-sm text-secondary font-medium block">Executive Track</span>
+<h3 class="font-label-lg text-label-lg text-on-surface line-clamp-1 group-hover:text-primary transition-colors">
+                Enterprise Product Leadership 2025
+              </h3>
+</div>
+<div class="flex items-center justify-between text-on-surface-variant font-body-sm text-body-sm">
+<span class="font-label-sm text-label-sm text-on-surface font-semibold">8 of 12 videos completed</span>
+<span class="font-label-sm text-label-sm text-primary font-bold">65%</span>
+</div>
+</div>
+</div>
+<!-- Progress Bar (Track & Pill fill) -->
+<div class="w-full bg-surface-container-high h-2 rounded-full overflow-hidden">
+<div class="bg-primary-container h-full rounded-full transition-all duration-500 ease-out" style="width: 65%;"></div>
+</div>
+<!-- Action Row -->
+<div class="flex items-center justify-between pt-0.5">
+<div class="flex items-center gap-1.5 text-on-surface-variant">
+<span class="material-symbols-outlined text-[16px] text-outline">play_circle</span>
+<span class="font-label-sm text-label-sm truncate max-w-[150px]">Next: 09. Stakeholder Sync</span>
+</div>
+<button class="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-primary-container text-on-primary-fixed hover:bg-primary font-label-md text-label-md shadow-xs active:scale-95 transition-all">
+<span class="material-symbols-outlined text-[18px]" style="font-variation-settings: 'FILL' 1;">play_arrow</span>
+<span>Resume</span>
+</button>
+</div>
+</article>
+<!-- Series Card 2 -->
+<article class="bg-surface-container-lowest rounded-2xl p-space-md shadow-sm hover:shadow transition-all group flex flex-col space-y-3">
+<div class="flex gap-3 items-start">
+<div class="relative w-24 h-20 rounded-xl overflow-hidden bg-surface-container-high flex-shrink-0 shadow-xs">
+<img class="w-full h-full object-cover" data-alt="Futuristic cloud network datacenter server corridor with serene ambient emerald lighting and clean server rack architectures." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCPh-j75gZX1qmQGV9S1f2oGbQmlsB8XIVgu0F5oYGuA1NbJuh9mA2hVmREvsh6jBfZcY9MfLkS92wEbrFtvRyWsuu9GPZYwJAxhbuvnd12IZA5LfFGk_EBYb55jXtfBkUcV_2Xfdwpg_hSW8t4L-D7BXPVi_W9JP5lAXPKtyewCzETYrtvMGeVrw8sts7HN-qGBE4Y6lj_sqPkr6fNgcW_jL7hDcVP7zjNrovH9s2b"/>
+<div class="absolute inset-0 bg-on-surface/20 flex items-center justify-center">
+<div class="w-8 h-8 rounded-full bg-surface-container-lowest/90 backdrop-blur-sm flex items-center justify-center text-primary shadow-xs">
+<span class="material-symbols-outlined text-[20px]" style="font-variation-settings: 'FILL' 1;">play_arrow</span>
+</div>
+</div>
+</div>
+<div class="flex-1 min-w-0 flex flex-col justify-between self-stretch">
+<div>
+<span class="font-label-sm text-label-sm text-secondary font-medium block">DevOps &amp; Infra</span>
+<h3 class="font-label-lg text-label-lg text-on-surface line-clamp-1 group-hover:text-primary transition-colors">
+                Internal Cloud Architecture &amp; Security
+              </h3>
+</div>
+<div class="flex items-center justify-between text-on-surface-variant font-body-sm text-body-sm">
+<span class="font-label-sm text-label-sm text-on-surface font-semibold">3 of 10 videos completed</span>
+<span class="font-label-sm text-label-sm text-primary font-bold">30%</span>
+</div>
+</div>
+</div>
+<!-- Progress Bar (Track & Pill fill) -->
+<div class="w-full bg-surface-container-high h-2 rounded-full overflow-hidden">
+<div class="bg-primary-container h-full rounded-full transition-all duration-500 ease-out" style="width: 30%;"></div>
+</div>
+<!-- Action Row -->
+<div class="flex items-center justify-between pt-0.5">
+<div class="flex items-center gap-1.5 text-on-surface-variant">
+<span class="material-symbols-outlined text-[16px] text-outline">play_circle</span>
+<span class="font-label-sm text-label-sm truncate max-w-[150px]">Next: 04. IAM Role Policies</span>
+</div>
+<button class="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-primary-container text-on-primary-fixed hover:bg-primary font-label-md text-label-md shadow-xs active:scale-95 transition-all">
+<span class="material-symbols-outlined text-[18px]" style="font-variation-settings: 'FILL' 1;">play_arrow</span>
+<span>Resume</span>
+</button>
+</div>
+</article>
+</div>
+</section>
+</div>
+<script>
+  (function initHomeScreen() {
+    // Dynamic greeting based on user device time
+    const greetingEl = document.getElementById('dynamic-greeting');
+    if (greetingEl) {
+      const hour = new Date().getHours();
+      let phrase = 'Good Morning, Sarah';
+      if (hour >= 12 && hour < 17) {
+        phrase = 'Good Afternoon, Sarah';
+      } else if (hour >= 17) {
+        phrase = 'Good Evening, Sarah';
+      }
+      greetingEl.textContent = phrase;
+    }
+
+    // Auto-sliding Carousel logic
+    const track = document.getElementById('carousel-track');
+    const dots = [
+      document.getElementById('dot-0'),
+      document.getElementById('dot-1'),
+      document.getElementById('dot-2')
+    ];
+    let currentIndex = 0;
+    const totalSlides = 3;
+    let timer = null;
+
+    function updateCarousel(index) {
+      currentIndex = index;
+      if (track) {
+        track.style.transform = `translateX(-${currentIndex * 100}%)`;
+      }
+      dots.forEach((dot, i) => {
+        if (!dot) return;
+        if (i === currentIndex) {
+          dot.className = 'w-5 h-1.5 rounded-full bg-primary-container transition-all duration-300 pointer-events-auto';
+        } else {
+          dot.className = 'w-1.5 h-1.5 rounded-full bg-on-surface-variant/30 hover:bg-on-surface-variant/60 transition-all duration-300 pointer-events-auto';
+        }
+      });
+    }
+
+    function startAutoSlide() {
+      clearInterval(timer);
+      timer = setInterval(() => {
+        const nextIndex = (currentIndex + 1) % totalSlides;
+        updateCarousel(nextIndex);
+      }, 4200);
+    }
+
+    dots.forEach((dot, i) => {
+      if (dot) {
+        dot.addEventListener('click', () => {
+          updateCarousel(i);
+          startAutoSlide();
+        });
+      }
+    });
+
+    startAutoSlide();
+  })();
+</script></main><div class="fixed bottom-0 inset-x-0 z-40 pb-safe pointer-events-none"><div class="px-margin pb-4 w-full flex justify-center"><nav class="pointer-events-auto w-full max-w-[390px] h-[64px] px-space-sm bg-white/90 backdrop-blur-xl rounded-full shadow-[0_8px_32px_rgba(7,94,84,0.08),0_2px_8px_rgba(17,27,33,0.04)] flex items-center justify-around" data-active-classes="bg-[#E7FCE8] text-primary font-bold shadow-[0_2px_8px_rgba(37,211,102,0.15)]"><a aria-current="page" class="flex items-center justify-center gap-1.5 h-11 px-4 rounded-full transition-all bg-[#E7FCE8] text-primary font-bold shadow-[0_2px_8px_rgba(37,211,102,0.15)]" data-path="home" href="#"><span class="material-symbols-outlined text-[22px]">home</span><span class="font-label-md text-label-md">Home</span></a><a class="flex items-center justify-center gap-1.5 h-11 px-4 rounded-full text-on-surface-variant transition-all" data-path="my-courses" href="#"><span class="material-symbols-outlined text-[22px]">school</span><span class="font-label-md text-label-md">My Courses</span></a><a class="flex items-center justify-center gap-1.5 h-11 px-4 rounded-full text-on-surface-variant transition-all" data-path="profile" href="#"><span class="material-symbols-outlined text-[22px]">person</span><span class="font-label-md text-label-md">Profile</span></a></nav></div></div><script>(function(){const s=document.getElementById('sidebar-drawer'),b=document.getElementById('sidebar-backdrop'),o=document.getElementById('open-sidebar-btn'),c=document.getElementById('close-sidebar-btn'),mb=document.getElementById('logout-modal-backdrop'),m=document.getElementById('logout-modal'),lo=document.getElementById('open-logout-btn'),slo=document.getElementById('sidebar-logout-btn'),mc=document.getElementById('cancel-logout-btn'),my=document.getElementById('confirm-logout-btn');function openS(){s.classList.add('open');b.classList.add('open');}function closeS(){s.classList.remove('open');b.classList.remove('open');}function openM(){mb.classList.add('open');m.classList.add('open');}function closeM(){mb.classList.remove('open');m.classList.remove('open');}o&&o.addEventListener('click',openS);c&&c.addEventListener('click',closeS);b&&b.addEventListener('click',closeS);lo&&lo.addEventListener('click',openM);slo&&slo.addEventListener('click',()=>{closeS();openM();});mc&&mc.addEventListener('click',closeM);mb&&mb.addEventListener('click',e=>{if(e.target===mb)closeM();});my&&my.addEventListener('click',()=>{closeM();window.location.hash='login';});})();</script></body></html>

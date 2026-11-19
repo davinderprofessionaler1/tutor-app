@@ -1,0 +1,21 @@
+{
+  "name": "tutor-course-platform",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@11.19.0",
+  "scripts": {
+    "dev": "pnpm --parallel --filter @tutor/web --filter @tutor/admin --filter @tutor/api dev",
+    "start": "pnpm --parallel --filter @tutor/web --filter @tutor/admin --filter @tutor/api start",
+    "dev:web": "pnpm --filter @tutor/web dev",
+    "dev:admin": "pnpm --filter @tutor/admin dev",
+    "dev:api": "pnpm --filter @tutor/api dev",
+    "build": "pnpm --filter @tutor/contracts build && pnpm --filter @tutor/api build && pnpm --filter @tutor/web build && pnpm --filter @tutor/admin build",
+    "typecheck": "pnpm -r typecheck",
+    "db:generate": "pnpm --filter @tutor/api db:generate",
+    "db:migrate": "pnpm --filter @tutor/api db:migrate",
+    "db:studio": "pnpm --filter @tutor/api db:studio"
+  },
+  "devDependencies": {
+    "@next/swc-wasm-nodejs": "16.3.6"
+  }
+}
