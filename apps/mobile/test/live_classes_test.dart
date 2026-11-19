@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter/services.dart';
+import 'package:tutor_student_app/live/student_classroom.dart';
 import 'package:tutor_student_app/live/live_api.dart';
 import 'package:tutor_student_app/live/live_classes_page.dart';
 
@@ -51,7 +53,56 @@ class FakeLiveApi extends LiveApi {
       };
 }
 
+class WaitingApi extends FakeLiveApi {
+  WaitingApi(super.value);
+  @override
+  Future<Map<String, dynamic>> request(String path,
+          {Map<String, dynamic>? body, String? method}) async =>
+      {'status': 'waiting'};
+}
+
 void main() {
+  testWidgets('waiting students see approval state before connecting any media',
+      (tester) async {
+    final value = sample(enrolled: true, status: 'Live');
+    await tester.pumpWidget(MaterialApp(
+        home: StudentClassroom(api: WaitingApi(value), value: value)));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(
+        find.textContaining('Waiting for teacher approval.'), findsOneWidget);
+    expect(find.text('Reconnect'), findsNothing);
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump();
+  });
+  testWidgets(
+      'recording download passes private authorization without a URL token',
+      (tester) async {
+    final value = LiveClass(Map<String, dynamic>.from(
+        sample(enrolled: true, status: 'Completed').data)
+      ..['recording'] = {'id': 'sample', 'mime': 'video/webm', 'bytes': 100});
+    MethodCall? download;
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        const MethodChannel('northstar/native'), (call) async {
+      download = call;
+      return null;
+    });
+    await tester.pumpWidget(MaterialApp(
+        home: LiveClassDetails(api: FakeLiveApi(value), value: value)));
+    await tester.pumpAndSettle();
+    final button = find.text('Download class recording');
+    await tester.scrollUntilVisible(button, 250);
+    await tester.tap(button);
+    await tester.pump();
+    expect(download?.method, 'downloadFile');
+    expect((download?.arguments as Map)['authorization'], 'test-token');
+    expect((download?.arguments as Map)['url'],
+        endsWith('/classes/class-test/recording'));
+    expect((download?.arguments as Map)['url'], isNot(contains('test-token')));
+    await tester.pumpWidget(const SizedBox());
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        const MethodChannel('northstar/native'), null);
+  });
   testWidgets('a teacher-ended student cannot rejoin or buy access again',
       (tester) async {
     final data =

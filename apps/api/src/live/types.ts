@@ -27,6 +27,13 @@ export type LiveClass = {
   startedAt: string | null;
   endedAt: string | null;
   chatEnabled: boolean;
+  recording?: {
+    id: string;
+    mime: "video/webm" | "video/mp4";
+    bytes: number;
+    createdAt: string;
+  };
+  recordingUntil?: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -69,6 +76,7 @@ export type JoinTicket = {
   camera: boolean;
   raisedHand: boolean;
   heartbeatAt: string;
+  mutePending?: boolean;
 };
 export type Attendance = {
   id: string;

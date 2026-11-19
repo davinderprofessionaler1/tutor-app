@@ -16,7 +16,22 @@ async function proxy(request: NextRequest, context: Context) {
   const { path } = await context.params;
   if (path.some((part) => !/^[a-zA-Z0-9_-]+$/.test(part)))
     return NextResponse.json({ error: "Invalid route." }, { status: 400 });
-  const body = request.method === "GET" ? undefined : await request.text();
+  const recording =
+    path.length === 3 && path[0] === "classes" && path[2] === "recording";
+  const binary = recording && request.method === "POST";
+  const contentType = request.headers.get("content-type")?.split(";")[0] ?? "";
+  if (binary && !["video/webm", "video/mp4"].includes(contentType))
+    return NextResponse.json({ error: "Upload WebM or MP4." }, { status: 415 });
+  if (
+    binary &&
+    Number(request.headers.get("content-length")) > 100 * 1024 * 1024
+  )
+    return NextResponse.json(
+      { error: "Recordings must be under 100 MB." },
+      { status: 413 },
+    );
+  const body =
+    request.method === "GET" || binary ? undefined : await request.text();
   if (body && body.length > 40000)
     return NextResponse.json(
       { error: "Request is too large." },
@@ -30,13 +45,29 @@ async function proxy(request: NextRequest, context: Context) {
         method: request.method,
         headers: {
           Authorization: `Bearer ${request.cookies.get(SESSION_COOKIE)?.value}`,
-          "Content-Type": "application/json",
+          "Content-Type": binary ? contentType : "application/json",
         },
-        ...(body ? { body } : {}),
+        ...(binary
+          ? { body: request.body, duplex: "half" }
+          : body
+            ? { body }
+            : {}),
         cache: "no-store",
-        signal: AbortSignal.timeout(20000),
+        signal: AbortSignal.timeout(binary ? 600000 : 20000),
       },
     );
+    if (recording && request.method === "GET" && response.ok)
+      return new NextResponse(response.body, {
+        status: response.status,
+        headers: {
+          "Content-Type":
+            response.headers.get("content-type") ?? "application/octet-stream",
+          "Content-Disposition":
+            response.headers.get("content-disposition") ?? "attachment",
+          "Cache-Control": "private, no-store",
+          "X-Content-Type-Options": "nosniff",
+        },
+      });
     return new NextResponse(await response.text(), {
       status: response.status,
       headers: {

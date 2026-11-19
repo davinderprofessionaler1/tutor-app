@@ -18,6 +18,13 @@ import {
   type PaymentGateway,
   type VerifiedPayment,
 } from "../src/live/providers.js";
+import Fastify from "fastify";
+import { mkdtemp, readdir, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join as joinPath } from "node:path";
+import { Readable } from "node:stream";
+import { RecordingFiles } from "../src/live/recordings.js";
+import { liveRoutes } from "../src/routes/live.js";
 import { buildApp } from "../src/app.js";
 
 class MemoryRepository implements LiveRepository {
@@ -1000,4 +1007,354 @@ test("failed SFU removal still revokes the student, with cleanup retried by reco
   f.video.remove = remove;
   await f.service.tick();
   assert.equal(f.repo.state.tickets[0]!.usedSid, null);
+});
+
+async function liveRoster(count = 2) {
+  const f = fixture();
+  const actors = Array.from(
+    { length: count },
+    (_, index): Actor => ({
+      ...student,
+      id: `scale-${index}`,
+      name: `Student ${index}`,
+      email: `scale-${index}@example.test`,
+    }),
+  );
+  f.platform.students = actors.map((actor) => ({
+    id: actor.id,
+    firstName: actor.name,
+    lastName: "",
+    email: actor.email,
+    status: "Active",
+    courseIds: ["course"],
+  }));
+  const { data } = await f.service.save(teacher, {
+    ...f.input,
+    capacity: count,
+  });
+  await f.service.lifecycle(teacher, data.id, "start");
+  const join = async (actor: Actor) => {
+    const ticket = await f.service.join(actor, data.id);
+    await f.service.videoWebhook({
+      id: `join-${ticket.ticketId}`,
+      event: "participant_joined",
+      room: { name: f.repo.state.classes[0]!.roomName! },
+      participant: { identity: ticket.identity, sid: `sid-${ticket.ticketId}` },
+    });
+    return ticket;
+  };
+  return { ...f, actors, id: data.id, join };
+}
+
+test("mute all revokes every student microphone, preserves cameras and the teacher, and retries provider failures", async () => {
+  const f = await liveRoster();
+  const tickets = await Promise.all(f.actors.map(f.join));
+  for (const ticket of tickets)
+    await f.service.moderate(teacher, f.id, {
+      action: "permissions",
+      identity: ticket.identity,
+      microphone: true,
+      camera: true,
+    });
+  const original = f.video.permissions.bind(f.video);
+  f.video.permissions = async (...args) => {
+    if (args[1] === tickets[0]!.identity) throw new Error("temporary outage");
+    await original(...args);
+  };
+  const result = await f.service.moderate(teacher, f.id, {
+    action: "mute-all",
+  });
+  assert.equal((result as { pending: number }).pending, 1);
+  assert.ok(
+    f.repo.state.tickets.every((ticket) => !ticket.microphone && ticket.camera),
+  );
+  assert.equal(f.repo.state.classes[0]!.status, "Live");
+  f.video.permissions = original;
+  await f.service.tick();
+  assert.ok(f.repo.state.tickets.every((ticket) => !ticket.mutePending));
+  await assert.rejects(
+    f.service.moderate(f.actors[0]!, f.id, { action: "mute-all" }),
+    /teacher/,
+  );
+});
+
+test("waiting room is teacher-owned, idempotent, and enforced by admission including joins issued before lock", async () => {
+  const f = await liveRoster();
+  await f.service.moderate(teacher, f.id, {
+    action: "waiting-room",
+    enabled: true,
+  });
+  assert.equal(
+    (await f.service.requestEntry(f.actors[0]!, f.id)).status,
+    "waiting",
+  );
+  await f.service.requestEntry(f.actors[0]!, f.id);
+  assert.equal(
+    (await f.service.students(teacher, f.id)).admission.waiting.length,
+    1,
+  );
+  await assert.rejects(f.service.join(f.actors[0]!, f.id), /approval/);
+  await assert.rejects(
+    f.service.moderate(f.actors[1]!, f.id, {
+      action: "admit-student",
+      studentId: f.actors[0]!.id,
+    }),
+    /teacher/,
+  );
+  await f.service.moderate(teacher, f.id, {
+    action: "admit-student",
+    studentId: f.actors[0]!.id,
+  });
+  assert.equal(
+    (await f.service.requestEntry(f.actors[0]!, f.id)).status,
+    "allowed",
+  );
+  const issued = await f.service.join(f.actors[0]!, f.id);
+  await f.service.moderate(teacher, f.id, { action: "lock", enabled: true });
+  await f.service.videoWebhook({
+    id: "locked-late-join",
+    event: "participant_joined",
+    room: { name: f.repo.state.classes[0]!.roomName! },
+    participant: { identity: issued.identity, sid: "late" },
+  });
+  assert.ok(
+    f.video.calls.some(
+      (call) => call.action === "remove" && call.identity === issued.identity,
+    ),
+  );
+  assert.equal(f.repo.state.attendance.length, 0);
+  await assert.rejects(f.service.join(f.actors[0]!, f.id), /locked/);
+  await f.service.moderate(teacher, f.id, { action: "lock", enabled: false });
+  await f.join(f.actors[0]!);
+  await f.service.moderate(teacher, f.id, { action: "lock", enabled: true });
+  assert.equal(
+    (await f.service.requestEntry(f.actors[0]!, f.id)).status,
+    "allowed",
+  );
+  await f.service.join(f.actors[0]!, f.id);
+});
+
+test("declined or cancelled waiting requests cannot bypass teacher decisions or entitlement", async () => {
+  const f = await liveRoster();
+  await f.service.moderate(teacher, f.id, {
+    action: "waiting-room",
+    enabled: true,
+  });
+  await f.service.requestEntry(f.actors[0]!, f.id);
+  await f.service.requestEntry(f.actors[0]!, f.id, true);
+  assert.equal(
+    (await f.service.students(teacher, f.id)).admission.waiting.length,
+    0,
+  );
+  await f.service.requestEntry(f.actors[0]!, f.id);
+  await f.service.moderate(teacher, f.id, {
+    action: "deny-student",
+    studentId: f.actors[0]!.id,
+  });
+  assert.equal(
+    (await f.service.requestEntry(f.actors[0]!, f.id)).status,
+    "denied",
+  );
+  await assert.rejects(f.service.join(f.actors[0]!, f.id), /declined/);
+  f.platform.students[1]!.courseIds = [];
+  await assert.rejects(
+    f.service.requestEntry(f.actors[1]!, f.id),
+    /enrollment/,
+  );
+});
+
+for (const count of [10, 25, 50])
+  test(`${count} distinct students retain isolated roster, permissions, chat and attendance under concurrent control traffic (mock SFU)`, async () => {
+    const f = await liveRoster(count);
+    const tickets = await Promise.all(f.actors.map(f.join));
+    assert.equal(
+      (await f.service.students(teacher, f.id)).data.filter(
+        (student) => student.connected,
+      ).length,
+      count,
+    );
+    await Promise.all(
+      tickets.map((ticket, index) =>
+        f.service.interaction(f.actors[index]!, f.id, {
+          action: "hand",
+          ticketId: ticket.ticketId,
+          raised: true,
+        }),
+      ),
+    );
+    await f.service.moderate(teacher, f.id, { action: "mute-all" });
+    await f.service.moderate(teacher, f.id, {
+      action: "end-student-session",
+      studentId: f.actors[0]!.id,
+    });
+    const heartbeats = await Promise.all(
+      tickets
+        .slice(1)
+        .map((ticket, index) =>
+          f.service.interaction(f.actors[index + 1]!, f.id, {
+            action: "heartbeat",
+            ticketId: ticket.ticketId,
+          }),
+        ),
+    );
+    assert.ok(
+      heartbeats.every(
+        (snapshot) =>
+          !snapshot.students &&
+          !snapshot.admission &&
+          snapshot.participants.length === count - 1,
+      ),
+    );
+    await assert.rejects(f.service.join(f.actors[0]!, f.id), /ended/);
+    assert.equal(
+      f.repo.state.attendance.filter((record) => !record.leftAt).length,
+      count - 1,
+    );
+    assert.equal(f.repo.state.classes[0]!.status, "Live");
+  });
+
+test("recording metadata is writable only by its teacher and downloadable only with current entitlement", async () => {
+  const f = await liveRoster();
+  const file = {
+    id: "c4338eec-4c09-4fa7-94ac-84718d3df434",
+    mime: "video/webm" as const,
+    bytes: 100,
+    createdAt: new Date().toISOString(),
+  };
+  await assert.rejects(
+    f.service.attachRecording(f.actors[0]!, f.id, file),
+    /teacher/,
+  );
+  await f.service.attachRecording(teacher, f.id, file);
+  assert.equal(
+    (await f.service.recordingAccess(f.actors[0]!, f.id))?.id,
+    file.id,
+  );
+  f.platform.students[0]!.courseIds = [];
+  await assert.rejects(
+    f.service.recordingAccess(f.actors[0]!, f.id),
+    /Enrollment/,
+  );
+  await assert.rejects(
+    f.service.recordingAccess({ ...teacher, id: "other" }, f.id),
+    /teacher/,
+  );
+  const ticket = await f.join(f.actors[1]!);
+  await f.service.moderate(teacher, f.id, {
+    action: "recording",
+    enabled: true,
+  });
+  const pulse = () =>
+    f.service.interaction(f.actors[1]!, f.id, {
+      action: "heartbeat",
+      ticketId: ticket.ticketId,
+    });
+  assert.equal((await pulse()).recordingActive, true);
+  f.advance(16000);
+  assert.equal((await pulse()).recordingActive, false);
+});
+
+test("private recording HTTP upload/download enforces entitlement, validates media and cleans oversized files", async () => {
+  const f = await liveRoster(),
+    root = await mkdtemp(joinPath(tmpdir(), "tutor-recording-test-")),
+    files = new RecordingFiles(root),
+    app = Fastify();
+  const token = (payload: object, secret: string) => {
+    const body = Buffer.from(JSON.stringify(payload)).toString("base64url");
+    return `${body}.${createHmac("sha256", secret).update(body).digest("base64url")}`;
+  };
+  const prior = process.env.ADMIN_SESSION_SECRET;
+  process.env.ADMIN_SESSION_SECRET = "recording-test-admin";
+  const admin = token(
+    { sub: "admin", version: 1, exp: Math.floor(Date.now() / 1000) + 600 },
+    process.env.ADMIN_SESSION_SECRET,
+  );
+  const learner = token(
+    { sub: f.actors[0]!.id },
+    process.env.STUDENT_SESSION_SECRET ?? f.platform.studentSessionSecret,
+  );
+  await app.register(liveRoutes, {
+    prefix: "/live",
+    service: f.service,
+    recordings: files,
+    backgroundJobs: false,
+  });
+  const upload = `/live/teacher/classes/${f.id}/recording`,
+    download = `/live/classes/${f.id}/recording`,
+    bytes = Buffer.from([0x1a, 0x45, 0xdf, 0xa3, 0, 0, 0, 0, 0, 0, 0, 0]);
+  try {
+    assert.equal(
+      (
+        await app.inject({
+          method: "POST",
+          url: upload,
+          headers: { "content-type": "video/webm" },
+          payload: bytes,
+        })
+      ).statusCode,
+      401,
+    );
+    const saved = await app.inject({
+      method: "POST",
+      url: upload,
+      headers: {
+        authorization: `Bearer ${admin}`,
+        "content-type": "video/webm",
+      },
+      payload: bytes,
+    });
+    assert.equal(saved.statusCode, 200, saved.body);
+    assert.equal((await app.inject({ url: download })).statusCode, 401);
+    const file = await app.inject({
+      url: download,
+      headers: { authorization: `Bearer ${learner}` },
+    });
+    assert.equal(file.statusCode, 200, file.body);
+    assert.deepEqual(file.rawPayload, bytes);
+    assert.equal(file.headers["cache-control"], "private, no-store");
+    assert.match(String(file.headers["content-disposition"]), /attachment/);
+    f.platform.students[0]!.courseIds = [];
+    assert.equal(
+      (
+        await app.inject({
+          url: download,
+          headers: { authorization: `Bearer ${learner}` },
+        })
+      ).statusCode,
+      403,
+    );
+    assert.equal(
+      (
+        await app.inject({
+          method: "POST",
+          url: upload,
+          headers: {
+            authorization: `Bearer ${admin}`,
+            "content-type": "video/webm",
+          },
+          payload: Buffer.from("not a recording"),
+        })
+      ).statusCode,
+      400,
+    );
+    const count = (await readdir(root)).length,
+      chunk = Buffer.alloc(8 * 1024 * 1024);
+    await assert.rejects(
+      files.save(
+        Readable.from(
+          (async function* () {
+            for (let i = 0; i < 13; i++) yield chunk;
+          })(),
+        ),
+        "video/webm",
+      ),
+      /100 MB/,
+    );
+    assert.equal((await readdir(root)).length, count);
+  } finally {
+    await app.close();
+    await rm(root, { recursive: true, force: true });
+    if (prior === undefined) delete process.env.ADMIN_SESSION_SECRET;
+    else process.env.ADMIN_SESSION_SECRET = prior;
+  }
 });

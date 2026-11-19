@@ -3,6 +3,8 @@ import { z } from "zod";
 import { liveActor } from "../live/auth.js";
 import { LiveService, type VideoEvent } from "../live/service.js";
 import { LiveKitVideo } from "../live/providers.js";
+import { RecordingFiles } from "../live/recordings.js";
+import { access } from "node:fs/promises";
 import { LiveError } from "../live/types.js";
 
 declare module "fastify" {
@@ -17,6 +19,7 @@ const interaction = z
     ticketId: z.string().uuid(),
     text: z.string().max(1000).optional(),
     raised: z.boolean().optional(),
+    recording: z.boolean().optional(),
   })
   .strict();
 const moderation = z
@@ -25,6 +28,12 @@ const moderation = z
       "permissions",
       "remove",
       "end-student-session",
+      "recording",
+      "mute-all",
+      "waiting-room",
+      "lock",
+      "admit-student",
+      "deny-student",
       "chat",
       "hide-message",
     ]),
@@ -40,6 +49,7 @@ const moderation = z
 export const liveRoutes: FastifyPluginAsync<{
   service?: LiveService;
   backgroundJobs?: boolean;
+  recordings?: RecordingFiles;
 }> = async (app, options) => {
   if (
     !options.service &&
@@ -56,6 +66,11 @@ export const liveRoutes: FastifyPluginAsync<{
     return;
   }
   const service = options.service ?? new LiveService();
+  const recordings = options.recordings ?? new RecordingFiles();
+  app.addContentTypeParser(
+    ["video/webm", "video/mp4"],
+    (_request, payload, done) => done(null, payload),
+  );
   app.removeContentTypeParser("application/json");
   app.addContentTypeParser(
     ["application/json", "application/webhook+json"],
@@ -135,6 +150,67 @@ export const liveRoutes: FastifyPluginAsync<{
         ),
     );
   }
+  app.post<{ Params: Params }>(
+    "/classes/:id/request-entry",
+    async (request) => {
+      const input = z
+        .object({ cancel: z.boolean().optional() })
+        .strict()
+        .parse(request.body ?? {});
+      return service.requestEntry(
+        await actor(request),
+        request.params.id,
+        input.cancel,
+      );
+    },
+  );
+  app.post<{ Params: Params }>(
+    "/teacher/classes/:id/recording",
+    async (request, reply) => {
+      const teacher = await actor(request, true);
+      await service.recordingAccess(teacher, request.params.id, true);
+      const mime = request.headers["content-type"]?.split(";")[0];
+      if (mime !== "video/webm" && mime !== "video/mp4")
+        throw new LiveError(415, "Use a WebM or MP4 recording.");
+      const file = await recordings.save(
+        request.body as AsyncIterable<Buffer>,
+        mime,
+      );
+      try {
+        return await service.attachRecording(teacher, request.params.id, file);
+      } catch (error) {
+        await recordings.discard(file.id);
+        throw error;
+      }
+    },
+  );
+  for (const prefix of ["", "/teacher"])
+    app.get<{ Params: Params }>(
+      `${prefix}/classes/:id/recording`,
+      async (request, reply) => {
+        const file = await service.recordingAccess(
+          await actor(request, Boolean(prefix)),
+          request.params.id,
+        );
+        if (!file)
+          throw new LiveError(404, "A recording is not available yet.");
+        try {
+          await access(recordings.file(file.id));
+        } catch {
+          throw new LiveError(404, "The recording file is unavailable.");
+        }
+        return reply
+          .header("Cache-Control", "private, no-store")
+          .header("X-Content-Type-Options", "nosniff")
+          .header("Content-Type", file.mime)
+          .header("Content-Length", file.bytes)
+          .header(
+            "Content-Disposition",
+            `attachment; filename="class-${file.id}.${file.mime === "video/webm" ? "webm" : "mp4"}"`,
+          )
+          .send(recordings.read(file.id));
+      },
+    );
   app.post("/teacher/classes", async (request, reply) =>
     reply
       .status(201)

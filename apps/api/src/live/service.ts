@@ -211,12 +211,154 @@ export class LiveService {
           a.name.localeCompare(b.name),
       );
   }
+  private setting(state: LiveState, id: string, type: string) {
+    return (
+      state.events
+        .filter(
+          (event) =>
+            event.classId === id && event.type === `moderation.${type}`,
+        )
+        .at(-1)?.detail === "true"
+    );
+  }
+  private entryStatus(
+    state: LiveState,
+    platform: Platform,
+    value: LiveClass,
+    studentId: string,
+  ) {
+    if (value.status !== "Live")
+      throw new LiveError(409, "This class is not live.", "CLASS_NOT_LIVE");
+    if (!this.access(state, platform, studentId, value))
+      throw new LiveError(
+        403,
+        "A valid enrollment is required.",
+        "NOT_ENROLLED",
+      );
+    if (this.studentSessionEnded(state, value.id, studentId))
+      throw new LiveError(
+        403,
+        "The teacher ended your session.",
+        "STUDENT_SESSION_ENDED",
+      );
+    const decision = state.events
+      .filter(
+        (event) =>
+          event.classId === value.id &&
+          event.detail === studentId &&
+          event.type.startsWith("waiting."),
+      )
+      .at(-1);
+    if (decision?.type === "waiting.denied") return "denied" as const;
+    const returning = state.attendance.some(
+      (record) => record.classId === value.id && record.studentId === studentId,
+    );
+    if (this.setting(state, value.id, "lock") && !returning)
+      return "locked" as const;
+    if (
+      returning ||
+      !this.setting(state, value.id, "waiting-room") ||
+      decision?.type === "waiting.admitted"
+    )
+      return "allowed" as const;
+    return "waiting" as const;
+  }
+  private admissionView(
+    state: LiveState,
+    platform: Platform,
+    value: LiveClass,
+  ) {
+    const decisions = new Map<string, (typeof state.events)[number]>();
+    for (const event of state.events)
+      if (event.classId === value.id && event.type.startsWith("waiting."))
+        decisions.set(event.detail, event);
+    return {
+      waitingRoom: this.setting(state, value.id, "waiting-room"),
+      locked: this.setting(state, value.id, "lock"),
+      waiting:
+        value.status === "Live"
+          ? [...decisions.values()]
+              .filter(
+                (event) =>
+                  event.type === "waiting.requested" &&
+                  this.access(state, platform, event.detail, value) &&
+                  !this.studentSessionEnded(state, value.id, event.detail),
+              )
+              .map((event) => {
+                const student = platform.students.find(
+                  (item) => item.id === event.detail,
+                )!;
+                return {
+                  id: student.id,
+                  name: `${student.firstName} ${student.lastName}`.trim(),
+                  requestedAt: event.createdAt,
+                };
+              })
+          : [],
+    };
+  }
+  async requestEntry(actor: Actor, id: string, cancel = false) {
+    if (actor.role !== "student")
+      throw new LiveError(403, "Only students request entry.");
+    const platform = await this.platform();
+    return this.repository.transaction((state) => {
+      const value = this.get(state, id);
+      const status = this.entryStatus(state, platform, value, actor.id);
+      const last = state.events
+        .filter(
+          (event) =>
+            event.classId === id &&
+            event.detail === actor.id &&
+            event.type.startsWith("waiting."),
+        )
+        .at(-1);
+      if (cancel && last?.type === "waiting.requested")
+        this.event(state, actor.id, "waiting.cancelled", id, actor.id);
+      else if (
+        !cancel &&
+        status === "waiting" &&
+        last?.type !== "waiting.requested"
+      )
+        this.event(state, actor.id, "waiting.requested", id, actor.id);
+      return { status: cancel ? "cancelled" : status };
+    });
+  }
+  async recordingAccess(actor: Actor, id: string, write = false) {
+    const platform = await this.platform();
+    return this.repository.transaction((state) => {
+      const value = this.get(state, id);
+      if (actor.role === "teacher") this.teacher(actor, value);
+      else if (write || !this.access(state, platform, actor.id, value))
+        throw new LiveError(
+          403,
+          "Enrollment is required to download this recording.",
+        );
+      return value.recording;
+    });
+  }
+  async attachRecording(
+    actor: Actor,
+    id: string,
+    recording: NonNullable<LiveClass["recording"]>,
+  ) {
+    return this.repository.transaction((state) => {
+      const value = this.get(state, id);
+      this.teacher(actor, value);
+      value.recording = recording;
+      value.recordingUntil = null;
+      this.event(state, actor.id, "recording.saved", id, recording.id);
+      return { ok: true, recording };
+    });
+  }
   async students(actor: Actor, id: string) {
     const platform = await this.platform();
     return this.repository.transaction((state) => {
       const value = this.get(state, id);
       this.teacher(actor, value);
-      return { data: this.classStudents(state, platform, value) };
+      return {
+        data: this.classStudents(state, platform, value),
+        admission: this.admissionView(state, platform, value),
+      };
     });
   }
   private reservedStudents(
@@ -508,6 +650,7 @@ export class LiveService {
           throw new LiveError(409, "This class is already closed.");
         value.status = action === "end" ? "Completed" : "Cancelled";
         value.endedAt = this.now();
+        value.recordingUntil = null;
         for (const ticket of state.tickets.filter(
           (item) => item.classId === id,
         ))
@@ -946,6 +1089,23 @@ export class LiveService {
           "The teacher removed you and ended your session in this class.",
           "STUDENT_SESSION_ENDED",
         );
+      if (actor.role === "student") {
+        const status = this.entryStatus(state, platform, value, actor.id);
+        if (status !== "allowed")
+          throw new LiveError(
+            403,
+            status === "locked"
+              ? "The teacher has locked this class."
+              : status === "denied"
+                ? "Your entry request was declined by the teacher."
+                : "Waiting for teacher approval.",
+            status === "locked"
+              ? "CLASS_LOCKED"
+              : status === "denied"
+                ? "ENTRY_DENIED"
+                : "WAITING_FOR_APPROVAL",
+          );
+      }
       const occupied = state.tickets.filter(
         (ticket) =>
           ticket.classId === id &&
@@ -1046,7 +1206,11 @@ export class LiveService {
           Date.parse(ticket.expiresAt) < this.clock() ||
           ticket.usedSid ||
           (ticket.role === "student" &&
-            !this.access(state, platform, ticket.actorId, value))
+            !this.access(state, platform, ticket.actorId, value)) ||
+          (ticket?.role === "student" &&
+            value &&
+            this.entryStatus(state, platform, value, ticket.actorId) !==
+              "allowed")
         ) {
           await this.video.remove(event.room.name, event.participant.identity);
         } else {
@@ -1135,6 +1299,15 @@ export class LiveService {
         !this.access(state, platform, ticket.actorId, value)
       )
         throw new LiveError(403, "Enrollment is no longer active.");
+      if (
+        ticket.role === "student" &&
+        !ticket.usedSid &&
+        this.entryStatus(state, platform, value, ticket.actorId) !== "allowed"
+      )
+        throw new LiveError(
+          403,
+          "Classroom entry needs teacher approval or the class is locked.",
+        );
       // LiveKit refreshes JWTs during a session. Re-check current server-side
       // permissions at the signaling gateway, including refreshed/replayed JWTs.
       if (ticket.role === "student" && claims.video?.canPublish) {
@@ -1166,6 +1339,7 @@ export class LiveService {
       ticketId: string;
       text?: string;
       raised?: boolean;
+      recording?: boolean;
     },
   ) {
     const platform = await this.platform();
@@ -1242,6 +1416,12 @@ export class LiveService {
         });
       }
       ticket.heartbeatAt = this.now();
+      if (input.recording !== undefined && actor.role !== "teacher")
+        throw new LiveError(403, "Only the teacher controls recording.");
+      if (ticket.role === "teacher")
+        value.recordingUntil = input.recording
+          ? new Date(this.clock() + 15000).toISOString()
+          : null;
       const record = state.attendance.find(
         (item) => item.sid === ticket.usedSid && !item.leftAt,
       );
@@ -1250,11 +1430,18 @@ export class LiveService {
         ok: true,
         status: value.status,
         chatEnabled: value.chatEnabled,
+        recordingActive: Boolean(
+          value.recordingUntil &&
+            Date.parse(value.recordingUntil) > this.clock(),
+        ),
         microphone: ticket.microphone,
         camera: ticket.camera,
         raisedHand: ticket.raisedHand,
         ...(actor.role === "teacher"
-          ? { students: this.classStudents(state, platform, value) }
+          ? {
+              students: this.classStudents(state, platform, value),
+              admission: this.admissionView(state, platform, value),
+            }
           : {}),
         messages: state.messages
           .filter((message) => message.classId === id && !message.hidden)
@@ -1321,6 +1508,12 @@ export class LiveService {
         | "permissions"
         | "remove"
         | "end-student-session"
+        | "recording"
+        | "mute-all"
+        | "waiting-room"
+        | "lock"
+        | "admit-student"
+        | "deny-student"
         | "chat"
         | "hide-message";
       identity?: string;
@@ -1337,6 +1530,89 @@ export class LiveService {
       this.teacher(actor, value);
       if (value.status !== "Live" || !value.roomName)
         throw new LiveError(409, "The class is not live.");
+      if (input.action === "recording") {
+        if (typeof input.enabled !== "boolean")
+          throw new LiveError(400, "Choose a recording state.");
+        value.recordingUntil = input.enabled
+          ? new Date(this.clock() + 15000).toISOString()
+          : null;
+        this.event(
+          state,
+          actor.id,
+          input.enabled ? "recording.started" : "recording.stopped",
+          id,
+        );
+        return { ok: true };
+      }
+      if (input.action === "mute-all") {
+        const tickets = state.tickets.filter(
+          (ticket) =>
+            ticket.classId === id &&
+            ticket.role === "student" &&
+            !ticket.revoked &&
+            ticket.usedSid,
+        );
+        for (const ticket of tickets) {
+          ticket.microphone = false;
+          ticket.raisedHand = false;
+          ticket.mutePending = true;
+          try {
+            await this.video.permissions(
+              ticket.roomName,
+              ticket.identity,
+              "student",
+              false,
+              ticket.camera,
+            );
+            ticket.mutePending = false;
+          } catch {
+            /* Persist revoked admission grants; tick retries SFU enforcement. */
+          }
+        }
+        this.event(
+          state,
+          actor.id,
+          "moderation.mute-all",
+          id,
+          String(tickets.length),
+        );
+        return {
+          ok: true,
+          muted: tickets.length,
+          pending: tickets.filter((ticket) => ticket.mutePending).length,
+        };
+      }
+      if (input.action === "lock" || input.action === "waiting-room") {
+        if (typeof input.enabled !== "boolean")
+          throw new LiveError(400, "Choose whether this setting is enabled.");
+        this.event(
+          state,
+          actor.id,
+          `moderation.${input.action}`,
+          id,
+          String(input.enabled),
+        );
+        return { ok: true };
+      }
+      if (input.action === "admit-student" || input.action === "deny-student") {
+        if (
+          !input.studentId ||
+          !this.admissionView(state, platform, value).waiting.some(
+            (student) => student.id === input.studentId,
+          )
+        )
+          throw new LiveError(404, "Waiting student not found.");
+        this.event(
+          state,
+          actor.id,
+          input.action === "admit-student"
+            ? "waiting.admitted"
+            : "waiting.denied",
+          id,
+          input.studentId,
+        );
+        return { ok: true };
+      }
       if (input.action === "end-student-session") {
         if (!input.studentId) throw new LiveError(400, "Select a student.");
         if (
@@ -1376,6 +1652,7 @@ export class LiveService {
             microphone,
             camera,
           );
+          ticket.mutePending = false;
           ticket.microphone = microphone;
           ticket.camera = camera;
           ticket.raisedHand = false;
@@ -1545,6 +1822,22 @@ export class LiveService {
   async tick() {
     const platform = await this.platform();
     await this.repository.transaction(async (state) => {
+      for (const ticket of state.tickets.filter(
+        (ticket) => ticket.mutePending && !ticket.revoked,
+      )) {
+        try {
+          await this.video.permissions(
+            ticket.roomName,
+            ticket.identity,
+            "student",
+            false,
+            ticket.camera,
+          );
+          ticket.mutePending = false;
+        } catch {
+          /* Try again on the next reconciliation tick. */
+        }
+      }
       for (const ticket of state.tickets.filter(
         (ticket) =>
           !ticket.revoked &&

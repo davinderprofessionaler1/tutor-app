@@ -13,11 +13,13 @@ import type {
   ClassroomJoin,
   ClassroomSnapshot,
   ClassroomStudent,
+  ClassroomAdmission,
   LiveClassView,
 } from "@tutor/contracts";
+import { TeacherRecording } from "./teacher-recording";
 import { TeacherStudents } from "./teacher-students";
 import { Topbar } from "../topbar";
-import { liveRequest } from "../../lib/live-client";
+import { liveRequest, LiveRequestError } from "../../lib/live-client";
 
 function Video({ track }: { track: Track }) {
   const element = useRef<HTMLVideoElement>(null);
@@ -56,12 +58,28 @@ export function TeacherClassroom({ id }: { id: string }) {
   const [, redraw] = useState(0);
   const [students, setStudents] = useState<ClassroomStudent[]>([]),
     [studentsLoading, setStudentsLoading] = useState(true);
+  const [admission, setAdmission] = useState<ClassroomAdmission>({
+    waitingRoom: false,
+    locked: false,
+    waiting: [],
+  });
+  const recordingActive = useRef(false);
+  const recordingChanged = useCallback((active: boolean) => {
+    recordingActive.current = active;
+  }, []);
   const refreshStudents = useCallback(async () => {
     try {
-      const response = await liveRequest<{ data: ClassroomStudent[] }>(
-        `classes/${id}/students`,
-      );
+      const [response, detail] = await Promise.all([
+        liveRequest<{
+          data: ClassroomStudent[];
+          admission: ClassroomAdmission;
+        }>(`classes/${id}/students`),
+        liveRequest<{ data: LiveClassView }>(`classes/${id}`),
+      ]);
+      setValue(detail.data);
+      setError("");
       setStudents(response.data);
+      setAdmission(response.admission);
     } catch (failure) {
       setError((failure as Error).message);
     } finally {
@@ -70,26 +88,36 @@ export function TeacherClassroom({ id }: { id: string }) {
   }, [id]);
   const session = useRef<ClassroomJoin | null>(null),
     activeRoom = useRef<Room | null>(null),
-    polling = useRef(false);
-  const disconnect = useCallback(async () => {
-    const old = session.current;
-    session.current = null;
-    await activeRoom.current?.disconnect();
-    activeRoom.current = null;
-    setRoom(null);
-    setSnapshot(null);
-    setConnection("Disconnected");
-    if (old)
-      await liveRequest(`classes/${id}/interact`, {
-        action: "leave",
-        ticketId: old.ticketId,
-      }).catch(() => undefined);
-  }, [id]);
+    polling = useRef(false),
+    reconnectWanted = useRef(false),
+    connecting = useRef(false),
+    retries = useRef(0);
+  const disconnect = useCallback(
+    async (manual = true) => {
+      if (manual) reconnectWanted.current = false;
+      const old = session.current;
+      session.current = null;
+      await activeRoom.current?.disconnect();
+      activeRoom.current = null;
+      setRoom(null);
+      setSnapshot(null);
+      setConnection("Disconnected");
+      if (old)
+        await liveRequest(`classes/${id}/interact`, {
+          action: "leave",
+          ticketId: old.ticketId,
+        }).catch(() => undefined);
+    },
+    [id],
+  );
   const connect = useCallback(async () => {
+    if (connecting.current) return;
+    connecting.current = true;
+    reconnectWanted.current = true;
     setBusy(true);
     setError("");
     try {
-      if (activeRoom.current) await disconnect();
+      if (activeRoom.current) await disconnect(false);
       const joined = await liveRequest<ClassroomJoin>(`classes/${id}/join`, {});
       // Use the established dual-PC signaling path across Chromium and Flutter clients.
       const next = new Room({
@@ -120,11 +148,19 @@ export function TeacherClassroom({ id }: { id: string }) {
         .on(RoomEvent.AudioPlaybackStatusChanged, refresh);
       await next.connect(joined.url, joined.token, { autoSubscribe: true });
       // Capture only when the teacher explicitly uses a media control.
-      await next.startAudio();
+      await next.startAudio().catch(() => undefined);
+      retries.current = 0;
     } catch (failure) {
       setError((failure as Error).message);
-      await disconnect();
+      if (
+        failure instanceof LiveRequestError &&
+        failure.status &&
+        failure.status < 500
+      )
+        reconnectWanted.current = false;
+      await disconnect(false);
     } finally {
+      connecting.current = false;
       setBusy(false);
     }
   }, [id, disconnect]);
@@ -132,29 +168,42 @@ export function TeacherClassroom({ id }: { id: string }) {
     void refreshStudents();
   }, [refreshStudents]);
   useEffect(() => {
-    liveRequest<{ data: LiveClassView }>(`classes/${id}`)
-      .then((response) => setValue(response.data))
-      .catch((failure: Error) => setError(failure.message));
     const timer = setInterval(async () => {
       const joined = session.current;
-      if (!joined || polling.current) return;
+      if (!joined) {
+        void refreshStudents();
+        return;
+      }
+      if (polling.current) return;
       polling.current = true;
       try {
         const response = await liveRequest<ClassroomSnapshot>(
           `classes/${id}/interact`,
-          { action: "heartbeat", ticketId: joined.ticketId },
+          {
+            action: "heartbeat",
+            ticketId: joined.ticketId,
+            recording: recordingActive.current,
+          },
         );
         setSnapshot(response);
         if (response.students) setStudents(response.students);
+        if (response.admission) setAdmission(response.admission);
       } catch (failure) {
         setError((failure as Error).message);
-        await disconnect();
+        if (
+          failure instanceof LiveRequestError &&
+          failure.status &&
+          failure.status < 500 &&
+          failure.status !== 429
+        )
+          await disconnect();
       } finally {
         polling.current = false;
       }
     }, 3000);
     return () => {
       clearInterval(timer);
+      reconnectWanted.current = false;
       const joined = session.current;
       session.current = null;
       void activeRoom.current?.disconnect();
@@ -164,7 +213,28 @@ export function TeacherClassroom({ id }: { id: string }) {
           ticketId: joined.ticketId,
         }).catch(() => undefined);
     };
-  }, [id, disconnect]);
+  }, [id, disconnect, refreshStudents]);
+  useEffect(() => {
+    const retry = setInterval(() => {
+      if (
+        reconnectWanted.current &&
+        !connecting.current &&
+        (!activeRoom.current ||
+          activeRoom.current.state === ConnectionState.Disconnected)
+      ) {
+        if (++retries.current > 5) {
+          reconnectWanted.current = false;
+          setError(
+            "Connection could not be restored. Use Reconnect to try again.",
+          );
+          return;
+        }
+        setConnection("Reconnecting");
+        void connect();
+      }
+    }, 5000);
+    return () => clearInterval(retry);
+  }, [connect]);
   useEffect(() => {
     const tick = () =>
       setElapsed(
@@ -190,11 +260,16 @@ export function TeacherClassroom({ id }: { id: string }) {
   }
   async function moderate(body: unknown) {
     await control(async () => {
-      const response = await liveRequest<{ disconnectPending?: boolean }>(
-        `classes/${id}/moderate`,
-        body,
-      );
+      const response = await liveRequest<{
+        disconnectPending?: boolean;
+        muted?: number;
+        pending?: number;
+      }>(`classes/${id}/moderate`, body);
       await refreshStudents();
+      if (response.pending)
+        setError(
+          `${response.pending} microphone updates are being retried. Students have been asked to mute.`,
+        );
       if (response.disconnectPending)
         setError(
           "Student access has ended. Disconnecting their previous connection is being retried.",
@@ -369,6 +444,7 @@ export function TeacherClassroom({ id }: { id: string }) {
               )}
             </div>
             <TeacherStudents
+              admission={admission}
               students={students}
               room={room}
               live={value?.status === "Live"}
@@ -380,6 +456,12 @@ export function TeacherClassroom({ id }: { id: string }) {
                 camera,
                 microphone: local?.isMicrophoneEnabled ?? false,
               }}
+            />
+            <TeacherRecording
+              onActiveChange={recordingChanged}
+              id={id}
+              room={room}
+              live={value?.status === "Live"}
             />
             <section className="panel live-detail">
               <h3>Class instructions</h3>

@@ -1,3 +1,12 @@
+export class LiveRequestError extends Error {
+  constructor(
+    message: string,
+    public code?: string,
+    public status?: number,
+  ) {
+    super(message);
+  }
+}
 export async function liveRequest<T>(
   path: string,
   body?: unknown,
@@ -6,6 +15,7 @@ export async function liveRequest<T>(
   const response = await fetch(`/api/live/${path}`, {
     method: method ?? (body === undefined ? "GET" : "POST"),
     cache: "no-store",
+    signal: AbortSignal.timeout(15000),
     ...(body === undefined
       ? {}
       : {
@@ -16,7 +26,11 @@ export async function liveRequest<T>(
   const data = await response.json();
   if (response.status === 401) window.location.assign("/login");
   if (!response.ok)
-    throw new Error(data.error ?? "The classroom request failed.");
+    throw new LiveRequestError(
+      data.error ?? "The classroom request failed.",
+      data.code,
+      response.status,
+    );
   return data as T;
 }
 export function liveMoney(amount: number) {

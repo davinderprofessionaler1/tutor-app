@@ -7,12 +7,13 @@ export interface LiveClassView {
   enrollmentDeadline: string | null; accessType: "individual" | "course" | "both"; status: LiveClassStatus;
   startedAt: string | null; endedAt: string | null; chatEnabled: boolean;
   enrollmentCount: number; availableSeats: number; accessible: boolean; enrollmentType: string | null;
-  canJoin: boolean; paymentStatus: string; revenue?: number; sessionEnded?: boolean;
+  canJoin: boolean; paymentStatus: string; revenue?: number; sessionEnded?: boolean; recording?: { id: string; mime: "video/webm" | "video/mp4"; bytes: number; createdAt: string };
 }
 export interface ClassroomParticipant { identity: string; name: string; role: "teacher" | "student"; raisedHand: boolean; microphone: boolean; camera: boolean }
 export interface ClassroomMessage { id: string; name: string; role: "teacher" | "student"; text: string; createdAt: string }
 export interface ClassroomStudent { id: string; name: string; email: string; enrollmentType: "course" | "individual" | null; identity: string | null; connected: boolean; sessionEnded: boolean; microphone: boolean; camera: boolean; raisedHand: boolean; joinedAt: string | null }
-export interface ClassroomSnapshot { ok: boolean; status: string; chatEnabled: boolean; microphone: boolean; camera: boolean; raisedHand: boolean; participants: ClassroomParticipant[]; messages: ClassroomMessage[]; students?: ClassroomStudent[] }
+export interface ClassroomAdmission { waitingRoom: boolean; locked: boolean; waiting: { id: string; name: string; requestedAt: string }[] }
+export interface ClassroomSnapshot { ok: boolean; status: string; chatEnabled: boolean; microphone: boolean; camera: boolean; raisedHand: boolean; participants: ClassroomParticipant[]; messages: ClassroomMessage[]; students?: ClassroomStudent[]; admission?: ClassroomAdmission; recordingActive?: boolean }
 export interface ClassroomJoin { token: string; url: string; identity: string; ticketId: string; title: string; startedAt: string }
 export type CourseAccess = "Lifetime" | "Fixed duration";
 

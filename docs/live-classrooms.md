@@ -14,7 +14,7 @@ Implemented on `feature/live-classroom` in the existing Next.js admin, Fastify A
 | Student classroom | Teacher video/screen with self-preview in one frame, audio playback, connection quality, timer, participant count, chat, raise hand, teacher-approved camera/mic, background media pause, reconnect and leave                          |
 | Notifications     | In-app enrollment/payment confirmation, scheduled-class reminder, start, reschedule, cancellation, completion and refund notices                                                                                     |
 
-The current platform has one admin identity. Its authenticated administrator is the teacher. A multi-teacher account system was not invented or substituted for existing authentication. Recording is disabled; no recording/egress service or paid notification provider was added.
+The current platform has one admin identity. Its authenticated administrator is the teacher. A multi-teacher account system was not invented or substituted for existing authentication. Optional browser recording and private MP4/WebM upload are available; no paid recording/egress service or paid notification provider was added.
 
 ## Razorpay payment models and rules
 
@@ -90,9 +90,9 @@ New implementation:
 
 - `apps/admin/app/live-classes/{page.tsx,live.css,[id]/page.tsx}`
 - `apps/admin/app/api/live/[...path]/route.ts`
-- `apps/admin/components/live/{live-class-workspace.tsx,teacher-classroom.tsx,teacher-students.tsx}`
+- `apps/admin/components/live/{live-class-workspace.tsx,teacher-classroom.tsx,teacher-students.tsx,teacher-recording.tsx}`
 - `apps/admin/lib/live-client.ts`
-- `apps/api/src/live/{types,store,auth,providers,service}.ts`
+- `apps/api/src/live/{types,store,auth,providers,service,recordings}.ts`
 - `apps/api/src/routes/live.ts`, `apps/api/scripts/migrate-live.ts`
 - `apps/api/migrations/live/001_live_classrooms.sql`
 - `apps/api/test/{live.test.ts,live-postgres.test.ts}`
@@ -116,9 +116,9 @@ Android Gradle settings already had device-build changes before module implement
 | Check                                                                 | Result                                                                                                                                                                                            |
 | --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Existing workspace typecheck and login widget before implementation   | Passed                                                                                                                                                                                            |
-| Backend service/HTTP/provider security scenarios                      | 22 passed                                                                                                                                                                                         |
+| Backend service/HTTP/provider security scenarios                      | 30 passed                                                                                                                                                                                         |
 | PostgreSQL migration using PGlite's PostgreSQL engine                 | 1 passed; applied twice, existing table preserved, constraints exercised                                                                                                                          |
-| Flutter widget tests including original login                         | 7 passed                                                                                                                                                                                          |
+| Flutter widget tests including original login                         | 9 passed                                                                                                                                                                                          |
 | Workspace TypeScript checks                                           | Passed                                                                                                                                                                                            |
 | API and admin production builds                                       | Passed                                                                                                                                                                                            |
 | Flutter analyzer                                                      | No errors/warnings; 5 informational Material import deprecations under Flutter 3.50                                                                                                               |
@@ -165,10 +165,30 @@ Deployment files are templates, **not a deployed service**:
 8. Rehearse SFU/API restarts and fresh admission, gateway failure (must deny access), refund revocation and database restore. Keep data backups and infrastructure revisions. Application rollback can leave the new tables intact; do not drop/truncate them.
 9. Run the full staged media tests and merchant sandbox acceptance tests. Publish a release APK only after replacing the debug loopback API URL with the production HTTPS API and completing device/network tests. Existing Android cleartext development configuration was preserved; release network policy needs its own review.
 
-Reminder/reconciliation jobs run in the API every 15 seconds. In-app reminders require the API to be running; background delivery while the app is closed is not an FCM/APNs push implementation. Set retention/archival and distributed edge rate limits before public high-volume operation. Recording requires a separate consent, storage, retention and cost decision.
+Reminder/reconciliation jobs run in the API every 15 seconds. In-app reminders require the API to be running; background delivery while the app is closed is not an FCM/APNs push implementation. Set retention/archival and distributed edge rate limits before public high-volume operation. Recording must be enabled explicitly after obtaining participant permission. Configure persistent recording storage and retention before public rollout.
 
 ## Local development and recovery
 
 Use `pnpm dev:api` and `pnpm dev:admin`, then open `/live-classes` in the existing admin. The current local test setup uses an ignored generated SFU configuration and the official downloaded LiveKit binary under workspace `.tools/livekit`, plus the Node signaling gateway. A phone reaches API/signaling through ADB reverse during USB development; media must use a LAN/public address reachable from that phone. The installed APK targets the existing local API on port 4000.
 
 Backups/checkpoints: workspace `.tools/checkpoints/live-classroom-before` contains a source archive, prior-change patch and development data snapshot. Module checkpoints are Git commits on `feature/live-classroom`. No production configuration was replaced and no original database records were deleted.
+
+
+## Classroom improvements: 19 November 2026
+
+- **Mute all students:** revokes student microphone grants while preserving cameras and the teacher. A failed SFU update is reported as pending, committed as a denied grant for new admission, and retried by reconciliation. Student heartbeats switch off local capture. Individual approval is still required to speak again.
+- **Gallery:** pin/unpin the teacher or any student, browser fullscreen/exit including Escape, and active-speaker borders. Every enrolled student remains in the searchable roster; pinning does not exclude the others.
+- **Waiting room and lock:** optional per-class teacher controls, off by default. New students request entry without receiving any SFU credentials, and the admin can admit or decline. Lock blocks new students and already-issued unused admission tickets; trusted previous attendance permits reconnects. These controls do not grant paid course access. Pending requests appear only to the owner; leaving the waiting screen cancels a pending request.
+- **Recovery:** transient teacher heartbeat failures keep the active SDK connection instead of immediately disconnecting. Initial admin details/roster retry after API outages. Both apps attempt fresh admission after an exhausted SDK connection; retries are bounded. Android uses 2/4/8/15/30-second backoff, waits while backgrounded and never retries ended/removed/declined admission. Fresh connections keep camera and microphone off until explicitly enabled again.
+- **Record and download:** the admin can record the current gallery and approved audio, stop, keep a local WebM, then save it for enrolled students. Alternatively upload a WebM/MP4. Recording is opt-in, requires the teacher's participant-permission confirmation and shows a student notice. The teacher heartbeat carries the actual recorder state; a stale recording notice expires within 15 seconds. Browser recording uses existing media, not another camera/mic request. Canvas capture is 1280×720 at 10 FPS, with up to 25 rendered gallery videos; filtered-out previews are excluded. The teacher must keep the tab open, stop and save. Browser memory holds the current clip; recording stops at 90 MB, uploads cap at 100 MB. This is browser recording, not resilient unattended server egress.
+- **Private files:** `LIVE_RECORDINGS_DIR` defaults to ignored `apps/api/data/live-recordings`; production needs a persistent private volume, backup and retention policy. Random file names are never served statically. Teacher uploads and student downloads require existing authenticated sessions and current enrollment. Downloads use an Authorization header, not query-string tokens. Android saves to Downloads using its native DownloadManager. Uploads stream to disk, validate a WebM/MP4 container header and remove incomplete/oversized files. Replacement uploads retain older files for safe manual retention; no automatic purge was added.
+
+New routes: POST `/classes/:id/request-entry` with optional `cancel`; teacher moderation actions `mute-all`, `waiting-room`, `lock`, `admit-student`, `deny-student`, `recording`; POST `/teacher/classes/:id/recording`; GET `/teacher/classes/:id/recording` and `/classes/:id/recording`. Additional state uses optional JSON payload fields and existing audit events; no SQL table/schema migration is required.
+
+New tests cover concurrent 10/25/50-student roster/control isolation with a mock SFU, partial mute enforcement recovery, waiting-room authorization/decline/cancel, lock races, private recording HTTP access, invalid/oversized file cleanup, notice expiry, and Android waiting/download UI. All original login and payment tests remain included. These mock-control tests are distinct from media diagnostics in the load-test guide.
+
+Physical verification of these improvements used a separate local “Classroom Improvements Demo”: waiting-room request on Samsung A12 appeared in admin, Admit caused automatic entry, and Mute All disabled the phone microphone while its camera stayed on. Fullscreen/pin was exercised in the browser. A non-personal recording (empty canvas and silence; no user camera/audio) was recorded, stopped, saved through the authenticated proxy and downloaded by the enrolled student. Its phone-file SHA-256 matched the server file. The silent-audio clock fix also covers recording when every microphone is muted. No participant media was recorded during these checks.
+
+Gallery regression command: `pnpm --filter @tutor/api test:live:gallery` (React server renderer with the admin's dedicated JSX test config). Service/recording tests: `pnpm --filter @tutor/api exec node --import tsx test/live.test.ts`. Flutter: `flutter test` under `apps/mobile`. Recording uses the standard browser [canvas capture](https://developer.mozilla.org/en-US/docs/Web/API/HTMLCanvasElement/captureStream) and [Web Audio stream destination](https://developer.mozilla.org/en-US/docs/Web/API/AudioContext/createMediaStreamDestination) APIs.
+
+A forced SFU disconnection (without removing enrollment or ending the student's session) was also exercised. The phone automatically obtained a new admission ticket, rejoined the still-Live class and created a second attendance visit. Camera/mic remained off on fresh admission. Class lock/unlock was checked in the browser; lock-versus-issued-ticket and returning-student policies are covered by backend tests. This does not certify recovery across external network/TURN outages. The final APK was installed with the existing login retained; recording test files remain private and the laptop's prior mute settings were restored after testing.

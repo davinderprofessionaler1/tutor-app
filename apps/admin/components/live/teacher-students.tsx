@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Track, type Room } from "livekit-client";
-import type { ClassroomStudent } from "@tutor/contracts";
+import type { ClassroomAdmission, ClassroomStudent } from "@tutor/contracts";
 
 function StudentVideo({ track, name }: { track: Track; name: string }) {
   const element = useRef<HTMLVideoElement>(null);
@@ -27,7 +27,15 @@ function StudentVideo({ track, name }: { track: Track; name: string }) {
 }
 
 type Moderation = {
-  action: "permissions" | "end-student-session";
+  action:
+    | "permissions"
+    | "end-student-session"
+    | "mute-all"
+    | "lock"
+    | "waiting-room"
+    | "admit-student"
+    | "deny-student";
+  enabled?: boolean;
   identity?: string;
   studentId?: string;
   microphone?: boolean;
@@ -41,6 +49,7 @@ export function TeacherStudents({
   moderate,
   refresh,
   teacher,
+  admission,
 }: {
   students: ClassroomStudent[];
   room: Room | null;
@@ -49,12 +58,43 @@ export function TeacherStudents({
   moderate: (input: Moderation) => Promise<void>;
   refresh: () => Promise<void>;
   teacher: { name: string; camera?: Track; microphone: boolean };
+  admission: ClassroomAdmission;
 }) {
   const [query, setQuery] = useState(""),
     [filter, setFilter] = useState("all");
   const [pending, setPending] = useState<string | null>(null),
     [ending, setEnding] = useState<ClassroomStudent | null>(null),
     [focused, setFocused] = useState<string | null>(null);
+  const gallery = useRef<HTMLElement>(null);
+  const [pinned, setPinned] = useState<string | null>(null),
+    [fullscreen, setFullscreen] = useState(false),
+    [viewError, setViewError] = useState("");
+  useEffect(() => {
+    const update = () =>
+      setFullscreen(document.fullscreenElement === gallery.current);
+    document.addEventListener("fullscreenchange", update);
+    return () => document.removeEventListener("fullscreenchange", update);
+  }, []);
+  async function toggleFullscreen() {
+    try {
+      setViewError("");
+      if (document.fullscreenElement === gallery.current)
+        await document.exitFullscreen();
+      else await gallery.current?.requestFullscreen();
+    } catch {
+      setViewError(
+        "Fullscreen is unavailable in this browser. You can still pin any video.",
+      );
+    }
+  }
+  async function bulk(input: Moderation) {
+    setPending("all");
+    try {
+      await moderate(input);
+    } finally {
+      setPending(null);
+    }
+  }
   const connected = students.filter((student) => student.connected).length;
   const values = students.filter(
     (student) =>
@@ -87,7 +127,11 @@ export function TeacherStudents({
   const selected = students.find((student) => student.id === focused),
     enlarged = selected ? camera(selected) : undefined;
   return (
-    <section className="panel live-students" aria-label="Class students">
+    <section
+      ref={gallery}
+      className="panel live-students"
+      aria-label="Class students"
+    >
       <header className="live-students-header">
         <div>
           <h2>Classroom</h2>
@@ -104,6 +148,82 @@ export function TeacherStudents({
           Refresh students
         </button>
       </header>
+      <div className="live-student-actions live-class-tools">
+        <button
+          className="secondary-action"
+          disabled={!live || !connected || Boolean(pending)}
+          onClick={() => void bulk({ action: "mute-all" })}
+        >
+          Mute all students
+        </button>
+        <button
+          className="secondary-action"
+          aria-pressed={fullscreen}
+          onClick={() => void toggleFullscreen()}
+        >
+          {fullscreen ? "Exit fullscreen" : "Fullscreen gallery"}
+        </button>
+        <button
+          className="secondary-action"
+          disabled={!live || Boolean(pending)}
+          aria-pressed={admission.waitingRoom}
+          onClick={() =>
+            void bulk({
+              action: "waiting-room",
+              enabled: !admission.waitingRoom,
+            })
+          }
+        >
+          {admission.waitingRoom ? "Waiting room on" : "Waiting room off"}
+        </button>
+        <button
+          className="secondary-action"
+          disabled={!live || Boolean(pending)}
+          aria-pressed={admission.locked}
+          onClick={() =>
+            void bulk({ action: "lock", enabled: !admission.locked })
+          }
+        >
+          {admission.locked ? "Unlock class" : "Lock class"}
+        </button>
+      </div>
+      {admission.locked && (
+        <p className="live-students-help" role="status">
+          Class locked. New students cannot enter. Previously joined students
+          can reconnect.
+        </p>
+      )}
+      {viewError && <p role="alert">{viewError}</p>}
+      {admission.waiting.length > 0 && (
+        <section className="live-waiting" aria-label="Waiting room">
+          <h3>Waiting to join · {admission.waiting.length}</h3>
+          {admission.waiting.map((student) => (
+            <div key={student.id} className="live-waiting-row">
+              <strong>{student.name}</strong>
+              <button
+                className="secondary-action"
+                disabled={Boolean(pending) || admission.locked}
+                aria-label={`Admit ${student.name}`}
+                onClick={() =>
+                  void bulk({ action: "admit-student", studentId: student.id })
+                }
+              >
+                Admit
+              </button>
+              <button
+                className="secondary-action"
+                disabled={Boolean(pending)}
+                aria-label={`Decline ${student.name}`}
+                onClick={() =>
+                  void bulk({ action: "deny-student", studentId: student.id })
+                }
+              >
+                Decline
+              </button>
+            </div>
+          ))}
+        </section>
+      )}
       <p className="live-students-help">
         Allow camera or microphone access, then the student turns it on from
         their phone. Approved student audio plays here.
@@ -136,7 +256,10 @@ export function TeacherStudents({
       {loading && !students.length && <p role="status">Loading students…</p>}
       {!loading && !values.length && <p>No students in this view.</p>}
       <div className="live-student-grid">
-        <article className="live-student-card" aria-label="Your teacher video">
+        <article
+          className={`live-student-card${pinned === "teacher" ? " live-student-pinned" : ""}${room?.localParticipant.isSpeaking ? " live-student-speaking" : ""}`}
+          aria-label="Your teacher video"
+        >
           <div className="live-student-video">
             {teacher.camera ? (
               <StudentVideo
@@ -160,6 +283,14 @@ export function TeacherStudents({
           </div>
           <div className="live-student-info">
             <strong>{teacher.name} · You</strong>
+            <button
+              className="text-action"
+              aria-label="Pin your video"
+              aria-pressed={pinned === "teacher"}
+              onClick={() => setPinned(pinned === "teacher" ? null : "teacher")}
+            >
+              {pinned === "teacher" ? "Unpin video" : "Pin video"}
+            </button>
             <div className="live-student-status">
               <span>Teacher</span>
               <span>
@@ -187,7 +318,7 @@ export function TeacherStudents({
             !pending;
           return (
             <article
-              className="live-student-card"
+              className={`live-student-card${pinned === student.id ? " live-student-pinned" : ""}${micOn && participant?.isSpeaking ? " live-student-speaking" : ""}`}
               key={student.id}
               aria-label={`${student.name} student`}
             >
@@ -217,6 +348,16 @@ export function TeacherStudents({
               </div>
               <div className="live-student-info">
                 <strong>{student.name}</strong>
+                <button
+                  className="text-action"
+                  aria-label={`Pin ${student.name} video`}
+                  aria-pressed={pinned === student.id}
+                  onClick={() =>
+                    setPinned(pinned === student.id ? null : student.id)
+                  }
+                >
+                  {pinned === student.id ? "Unpin video" : "Pin video"}
+                </button>
                 <small>{student.email}</small>
                 <div className="live-student-status">
                   <span>

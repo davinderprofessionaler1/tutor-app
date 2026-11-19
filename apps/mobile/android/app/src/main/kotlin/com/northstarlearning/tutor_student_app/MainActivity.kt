@@ -66,6 +66,8 @@ class MainActivity : FlutterActivity() {
                             .setDescription("Course attachment")
                             .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
                             .setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, safeName)
+                        val authorization = arguments?.get("authorization") as? String
+                        if (!authorization.isNullOrBlank()) request.addRequestHeader("Authorization", "Bearer $authorization")
                         (getSystemService(DOWNLOAD_SERVICE) as DownloadManager).enqueue(request)
                         result.success(null)
                     } catch (_: Exception) { result.error("DOWNLOAD_ERROR", "Could not start the download.", null) }

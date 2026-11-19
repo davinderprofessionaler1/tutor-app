@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:razorpay_flutter/razorpay_flutter.dart';
 import '../student_app.dart'
     show canvas, primary, ink, muted, line, SurfaceCard, native;
@@ -280,6 +281,29 @@ class _LiveClassDetailsState extends State<LiveClassDetails>
     if (state == AppLifecycleState.resumed) refresh();
   }
 
+  Future<void> downloadRecording() async {
+    try {
+      final recording = value.data['recording'] as Map;
+      await const MethodChannel('northstar/native')
+          .invokeMethod('downloadFile', {
+        'url': '${LiveApi.baseUrl}/classes/${value.id}/recording',
+        'name':
+            'class-${recording['id']}.${recording['mime'] == 'video/webm' ? 'webm' : 'mp4'}',
+        'authorization': widget.api.token,
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text(
+                'Recording download started. Check your Downloads folder.')));
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() => error =
+            'Could not start the recording download. Please try again.');
+      }
+    }
+  }
+
   Future<void> refresh() async {
     try {
       final next = await widget.api.detail(value.id);
@@ -416,6 +440,13 @@ class _LiveClassDetailsState extends State<LiveClassDetails>
           Padding(
               padding: const EdgeInsets.only(bottom: 14),
               child: Text(error!, style: const TextStyle(color: muted))),
+        if (value.accessible && value.data['recording'] != null)
+          Padding(
+              padding: const EdgeInsets.only(bottom: 14),
+              child: OutlinedButton.icon(
+                  onPressed: downloadRecording,
+                  icon: const Icon(Icons.download_outlined),
+                  label: const Text('Download class recording'))),
         if (value.sessionEnded)
           const SurfaceCard(
               child: Text(

@@ -13,7 +13,8 @@
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:studio": "prisma studio",
-    "db:validate": "prisma validate"
+    "db:validate": "prisma validate",
+    "test:live:gallery": "TSX_TSCONFIG_PATH=../admin/tsconfig.test.json node --import tsx ../admin/test/live-gallery.test.tsx"
   },
   "dependencies": {
     "@fastify/cors": "11.3.0",
