@@ -15,6 +15,7 @@ class LiveClass {
   String get thumbnail => data['thumbnailUrl'] as String? ?? '';
   bool get accessible => data['accessible'] == true;
   bool get canJoin => data['canJoin'] == true;
+  bool get sessionEnded => data['sessionEnded'] == true;
   int get price => (data['price'] as num).toInt();
   int get coursePrice => (data['coursePrice'] as num? ?? 0).toInt();
   int get availableSeats => (data['availableSeats'] as num? ?? 0).toInt();

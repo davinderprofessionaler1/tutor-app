@@ -21,8 +21,15 @@ const interaction = z
   .strict();
 const moderation = z
   .object({
-    action: z.enum(["permissions", "remove", "chat", "hide-message"]),
+    action: z.enum([
+      "permissions",
+      "remove",
+      "end-student-session",
+      "chat",
+      "hide-message",
+    ]),
     identity: z.string().max(200).optional(),
+    studentId: z.string().min(1).max(200).optional(),
     microphone: z.boolean().optional(),
     camera: z.boolean().optional(),
     enabled: z.boolean().optional(),
@@ -41,12 +48,10 @@ export const liveRoutes: FastifyPluginAsync<{
   ) {
     // An unconfigured optional module must not stop the existing platform.
     app.all("/*", async (_request, reply) =>
-      reply
-        .status(503)
-        .send({
-          error: "Live Classes requires LIVE_DATABASE_URL in production.",
-          code: "LIVE_NOT_CONFIGURED",
-        }),
+      reply.status(503).send({
+        error: "Live Classes requires LIVE_DATABASE_URL in production.",
+        code: "LIVE_NOT_CONFIGURED",
+      }),
     );
     return;
   }
@@ -66,24 +71,20 @@ export const liveRoutes: FastifyPluginAsync<{
   );
   app.setErrorHandler((error, request, reply) => {
     if (error instanceof z.ZodError)
-      return reply
-        .status(400)
-        .send({
-          error: error.issues
-            .map((issue) => `${issue.path.join(".")}: ${issue.message}`)
-            .join("; "),
-        });
+      return reply.status(400).send({
+        error: error.issues
+          .map((issue) => `${issue.path.join(".")}: ${issue.message}`)
+          .join("; "),
+      });
     if (error instanceof LiveError)
       return reply
         .status(error.statusCode)
         .send({ error: error.message, code: error.code });
     request.log.error(error, "Live classroom request failed");
-    return reply
-      .status(503)
-      .send({
-        error:
-          "The classroom service is temporarily unavailable. Please try again.",
-      });
+    return reply.status(503).send({
+      error:
+        "The classroom service is temporarily unavailable. Please try again.",
+    });
   });
   const windows = new Map<string, { count: number; start: number }>();
   app.addHook("onRequest", async (request, reply) => {
@@ -162,6 +163,11 @@ export const liveRoutes: FastifyPluginAsync<{
   );
   app.get("/teacher/reports", async (request) =>
     service.report(await actor(request, true)),
+  );
+  app.get<{ Params: Params }>(
+    "/teacher/classes/:id/students",
+    async (request) =>
+      service.students(await actor(request, true), request.params.id),
   );
   app.get<{ Params: Params }>("/teacher/classes/:id/report", async (request) =>
     service.report(await actor(request, true), request.params.id),

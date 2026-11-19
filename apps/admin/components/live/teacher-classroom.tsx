@@ -7,15 +7,15 @@ import {
   Room,
   RoomEvent,
   Track,
-  type LocalVideoTrack,
   type RemoteAudioTrack,
-  type RemoteVideoTrack,
 } from "livekit-client";
 import type {
   ClassroomJoin,
   ClassroomSnapshot,
+  ClassroomStudent,
   LiveClassView,
 } from "@tutor/contracts";
+import { TeacherStudents } from "./teacher-students";
 import { Topbar } from "../topbar";
 import { liveRequest } from "../../lib/live-client";
 
@@ -54,6 +54,20 @@ export function TeacherClassroom({ id }: { id: string }) {
     [busy, setBusy] = useState(false),
     [elapsed, setElapsed] = useState(0);
   const [, redraw] = useState(0);
+  const [students, setStudents] = useState<ClassroomStudent[]>([]),
+    [studentsLoading, setStudentsLoading] = useState(true);
+  const refreshStudents = useCallback(async () => {
+    try {
+      const response = await liveRequest<{ data: ClassroomStudent[] }>(
+        `classes/${id}/students`,
+      );
+      setStudents(response.data);
+    } catch (failure) {
+      setError((failure as Error).message);
+    } finally {
+      setStudentsLoading(false);
+    }
+  }, [id]);
   const session = useRef<ClassroomJoin | null>(null),
     activeRoom = useRef<Room | null>(null),
     polling = useRef(false);
@@ -99,7 +113,11 @@ export function TeacherClassroom({ id }: { id: string }) {
         .on(RoomEvent.TrackMuted, refresh)
         .on(RoomEvent.TrackUnmuted, refresh)
         .on(RoomEvent.ConnectionQualityChanged, refresh)
-        .on(RoomEvent.ParticipantPermissionsChanged, refresh);
+        .on(RoomEvent.ParticipantPermissionsChanged, refresh)
+        .on(RoomEvent.ParticipantConnected, refresh)
+        .on(RoomEvent.ParticipantDisconnected, refresh)
+        .on(RoomEvent.ActiveSpeakersChanged, refresh)
+        .on(RoomEvent.AudioPlaybackStatusChanged, refresh);
       await next.connect(joined.url, joined.token, { autoSubscribe: true });
       // Capture only when the teacher explicitly uses a media control.
       await next.startAudio();
@@ -111,6 +129,9 @@ export function TeacherClassroom({ id }: { id: string }) {
     }
   }, [id, disconnect]);
   useEffect(() => {
+    void refreshStudents();
+  }, [refreshStudents]);
+  useEffect(() => {
     liveRequest<{ data: LiveClassView }>(`classes/${id}`)
       .then((response) => setValue(response.data))
       .catch((failure: Error) => setError(failure.message));
@@ -119,12 +140,12 @@ export function TeacherClassroom({ id }: { id: string }) {
       if (!joined || polling.current) return;
       polling.current = true;
       try {
-        setSnapshot(
-          await liveRequest<ClassroomSnapshot>(`classes/${id}/interact`, {
-            action: "heartbeat",
-            ticketId: joined.ticketId,
-          }),
+        const response = await liveRequest<ClassroomSnapshot>(
+          `classes/${id}/interact`,
+          { action: "heartbeat", ticketId: joined.ticketId },
         );
+        setSnapshot(response);
+        if (response.students) setStudents(response.students);
       } catch (failure) {
         setError((failure as Error).message);
         await disconnect();
@@ -169,21 +190,37 @@ export function TeacherClassroom({ id }: { id: string }) {
   }
   async function moderate(body: unknown) {
     await control(async () => {
-      await liveRequest(`classes/${id}/moderate`, body);
+      const response = await liveRequest<{ disconnectPending?: boolean }>(
+        `classes/${id}/moderate`,
+        body,
+      );
+      await refreshStudents();
+      if (response.disconnectPending)
+        setError(
+          "Student access has ended. Disconnecting their previous connection is being retried.",
+        );
     });
   }
   const local = room?.localParticipant;
   const publications = [...(local?.videoTrackPublications.values() ?? [])];
-  const stage =
-    publications.find(
-      (publication) =>
-        publication.source === Track.Source.ScreenShare && !publication.isMuted,
-    )?.track ??
-    publications.find(
-      (publication) =>
-        publication.source === Track.Source.Camera && !publication.isMuted,
-    )?.track;
+  const screen = publications.find(
+    (publication) =>
+      publication.source === Track.Source.ScreenShare && !publication.isMuted,
+  )?.track;
+  const camera = publications.find(
+    (publication) =>
+      publication.source === Track.Source.Camera && !publication.isMuted,
+  )?.track;
   const audio = [...(room?.remoteParticipants.values() ?? [])]
+    .filter((participant) =>
+      students.some(
+        (student) =>
+          student.identity === participant.identity &&
+          student.connected &&
+          student.microphone &&
+          !student.sessionEnded,
+      ),
+    )
     .flatMap((participant) => [...participant.audioTrackPublications.values()])
     .map((publication) => publication.track)
     .filter((track): track is RemoteAudioTrack => Boolean(track));
@@ -215,34 +252,31 @@ export function TeacherClassroom({ id }: { id: string }) {
         </div>
         <div className="live-room">
           <section>
-            <div className="live-stage">
-              {stage ? (
-                <Video track={stage} />
-              ) : (
-                <div className="live-stage-placeholder">
-                  <h2>{value?.title ?? "Your classroom"}</h2>
-                  <p>
-                    {room
-                      ? "Your camera is off. Turn it on or share your screen when you are ready."
-                      : "Connect to the classroom to begin teaching."}
-                  </p>
-                  {!room && value?.status === "Live" && (
-                    <button
-                      className="primary-action"
-                      disabled={busy}
-                      onClick={() => void connect()}
-                    >
-                      {busy ? "Connecting…" : "Enter classroom"}
-                    </button>
-                  )}
-                </div>
-              )}
-              <small>
-                {value?.status === "Live"
-                  ? "LIVE"
-                  : (value?.status ?? "Classroom")}
-              </small>
-            </div>
+            {screen && (
+              <div className="live-stage">
+                <Video track={screen} />
+                <small>Screen share</small>
+              </div>
+            )}
+            {!room && (
+              <div className="live-stage-placeholder">
+                <h2>{value?.title ?? "Your classroom"}</h2>
+                <p>
+                  {room
+                    ? "Your camera is off. Turn it on or share your screen when you are ready."
+                    : "Connect to the classroom to begin teaching."}
+                </p>
+                {!room && value?.status === "Live" && (
+                  <button
+                    className="primary-action"
+                    disabled={busy}
+                    onClick={() => void connect()}
+                  >
+                    {busy ? "Connecting…" : "Enter classroom"}
+                  </button>
+                )}
+              </div>
+            )}
             {audio.map((track) => (
               <Audio key={track.sid} track={track} />
             ))}
@@ -322,6 +356,7 @@ export function TeacherClassroom({ id }: { id: string }) {
                       await liveRequest(`classes/${id}/end`, {});
                       await disconnect();
                       setError("");
+                      await refreshStudents();
                       setValue((current) =>
                         current ? { ...current, status: "Completed" } : null,
                       );
@@ -333,6 +368,19 @@ export function TeacherClassroom({ id }: { id: string }) {
                 </button>
               )}
             </div>
+            <TeacherStudents
+              students={students}
+              room={room}
+              live={value?.status === "Live"}
+              loading={studentsLoading}
+              moderate={moderate}
+              refresh={refreshStudents}
+              teacher={{
+                name: value?.teacherName ?? "Teacher",
+                camera,
+                microphone: local?.isMicrophoneEnabled ?? false,
+              }}
+            />
             <section className="panel live-detail">
               <h3>Class instructions</h3>
               <p>{value?.instructions || "No additional instructions."}</p>
@@ -342,72 +390,6 @@ export function TeacherClassroom({ id }: { id: string }) {
             </section>
           </section>
           <aside className="live-room-aside">
-            <section className="panel">
-              <h2>Participants · {snapshot?.participants.length ?? 0}</h2>
-              <div className="live-participants">
-                {!snapshot?.participants.length && (
-                  <p>Participants appear after joining the classroom.</p>
-                )}
-                {snapshot?.participants.map((participant) => (
-                  <article key={participant.identity}>
-                    <strong>{participant.name}</strong> · {participant.role}
-                    {participant.raisedHand && (
-                      <span> · ✋ Wants to speak</span>
-                    )}
-                    {participant.role === "student" && (
-                      <div>
-                        <button
-                          className="secondary-action"
-                          onClick={() =>
-                            void moderate({
-                              action: "permissions",
-                              identity: participant.identity,
-                              microphone: !participant.microphone,
-                              camera: participant.camera,
-                            })
-                          }
-                        >
-                          {participant.microphone
-                            ? "Mute / revoke mic"
-                            : "Allow microphone"}
-                        </button>
-                        <button
-                          className="secondary-action"
-                          onClick={() =>
-                            void moderate({
-                              action: "permissions",
-                              identity: participant.identity,
-                              camera: !participant.camera,
-                              microphone: participant.microphone,
-                            })
-                          }
-                        >
-                          {participant.camera
-                            ? "Revoke camera"
-                            : "Allow camera"}
-                        </button>
-                        <button
-                          className="secondary-action"
-                          onClick={() => {
-                            if (
-                              window.confirm(
-                                `Remove ${participant.name} for the rest of this session?`,
-                              )
-                            )
-                              void moderate({
-                                action: "remove",
-                                identity: participant.identity,
-                              });
-                          }}
-                        >
-                          Remove
-                        </button>
-                      </div>
-                    )}
-                  </article>
-                ))}
-              </div>
-            </section>
             <section className="panel">
               <h2>Class chat</h2>
               <div className="live-chat">

@@ -1,6 +1,7 @@
 import { createHash, createHmac, randomUUID } from "node:crypto";
 import { z } from "zod";
 import { TokenVerifier, TrackSource } from "livekit-server-sdk";
+import type { ClassroomStudent } from "@tutor/contracts";
 import { safeEqual } from "./auth.js";
 import {
   LiveKitVideo,
@@ -146,6 +147,78 @@ export class LiveService {
       this.access(state, platform, student.id, value),
     );
   }
+  private studentSessionEnded(
+    state: LiveState,
+    classId: string,
+    studentId: string,
+  ) {
+    return state.events.some(
+      (event) =>
+        event.classId === classId &&
+        event.type === "participant.removed" &&
+        event.detail === studentId,
+    );
+  }
+  private classStudents(
+    state: LiveState,
+    platform: Platform,
+    value: LiveClass,
+  ): ClassroomStudent[] {
+    const attended = new Set(
+      state.attendance
+        .filter((record) => record.classId === value.id)
+        .map((record) => record.studentId),
+    );
+    return platform.students
+      .filter(
+        (student) =>
+          this.access(state, platform, student.id, value) ||
+          attended.has(student.id),
+      )
+      .map((student) => {
+        const ticket = state.tickets.find(
+          (item) =>
+            item.classId === value.id &&
+            item.actorId === student.id &&
+            item.role === "student" &&
+            !item.revoked &&
+            item.usedSid &&
+            Date.parse(item.heartbeatAt) > this.clock() - 45000,
+        );
+        const record = state.attendance
+          .filter(
+            (item) =>
+              item.classId === value.id && item.studentId === student.id,
+          )
+          .at(-1);
+        return {
+          id: student.id,
+          name: `${student.firstName} ${student.lastName}`.trim(),
+          email: student.email,
+          enrollmentType: this.access(state, platform, student.id, value),
+          identity: ticket?.identity ?? null,
+          connected: Boolean(ticket),
+          sessionEnded: this.studentSessionEnded(state, value.id, student.id),
+          microphone: ticket?.microphone ?? false,
+          camera: ticket?.camera ?? false,
+          raisedHand: ticket?.raisedHand ?? false,
+          joinedAt: record?.joinedAt ?? null,
+        };
+      })
+      .sort(
+        (a, b) =>
+          Number(b.connected) - Number(a.connected) ||
+          a.name.localeCompare(b.name),
+      );
+  }
+  async students(actor: Actor, id: string) {
+    const platform = await this.platform();
+    return this.repository.transaction((state) => {
+      const value = this.get(state, id);
+      this.teacher(actor, value);
+      return { data: this.classStudents(state, platform, value) };
+    });
+  }
   private reservedStudents(
     state: LiveState,
     platform: Platform,
@@ -216,7 +289,14 @@ export class LiveService {
       availableSeats: Math.max(0, value.capacity - count),
       accessible: actor.role === "teacher" || Boolean(source),
       enrollmentType: source,
-      canJoin: Boolean(source && value.status === "Live"),
+      canJoin: Boolean(
+        source &&
+          value.status === "Live" &&
+          !this.studentSessionEnded(state, value.id, actor.id),
+      ),
+      sessionEnded:
+        actor.role === "student" &&
+        this.studentSessionEnded(state, value.id, actor.id),
       paymentStatus: source ? "Enrolled" : "Not enrolled",
       ...(actor.role === "teacher"
         ? { revenue: paid.reduce((sum, order) => sum + order.amount, 0) }
@@ -861,7 +941,11 @@ export class LiveService {
           event.detail === actor.id,
       );
       if (kicked && actor.role === "student")
-        throw new LiveError(403, "The teacher removed you from this session.");
+        throw new LiveError(
+          403,
+          "The teacher removed you and ended your session in this class.",
+          "STUDENT_SESSION_ENDED",
+        );
       const occupied = state.tickets.filter(
         (ticket) =>
           ticket.classId === id &&
@@ -1098,8 +1182,14 @@ export class LiveService {
       if (!ticket || value.status !== "Live")
         throw new LiveError(
           409,
-          "Your classroom session has ended.",
-          "SESSION_ENDED",
+          actor.role === "student" &&
+          this.studentSessionEnded(state, id, actor.id)
+            ? "The teacher ended your session in this class."
+            : "Your classroom session has ended.",
+          actor.role === "student" &&
+          this.studentSessionEnded(state, id, actor.id)
+            ? "STUDENT_SESSION_ENDED"
+            : "SESSION_ENDED",
         );
       if (
         actor.role === "student" &&
@@ -1163,6 +1253,9 @@ export class LiveService {
         microphone: ticket.microphone,
         camera: ticket.camera,
         raisedHand: ticket.raisedHand,
+        ...(actor.role === "teacher"
+          ? { students: this.classStudents(state, platform, value) }
+          : {}),
         messages: state.messages
           .filter((message) => message.classId === id && !message.hidden)
           .slice(-100),
@@ -1190,23 +1283,70 @@ export class LiveService {
       };
     });
   }
+  private async endStudentSession(
+    state: LiveState,
+    value: LiveClass,
+    actor: Actor,
+    studentId: string,
+  ) {
+    if (!this.studentSessionEnded(state, value.id, studentId))
+      this.event(state, actor.id, "participant.removed", value.id, studentId);
+    let disconnectPending = false;
+    for (const ticket of state.tickets.filter(
+      (item) =>
+        item.classId === value.id &&
+        item.actorId === studentId &&
+        item.role === "student",
+    )) {
+      ticket.revoked = true;
+      const attendance = state.attendance.find(
+        (item) => item.sid === ticket.usedSid && !item.leftAt,
+      );
+      if (attendance) this.closeAttendance(attendance);
+      if (ticket.usedSid) {
+        try {
+          await this.video.remove(ticket.roomName, ticket.identity);
+        } catch {
+          disconnectPending = true;
+        }
+      }
+    }
+    return { ok: true, disconnectPending };
+  }
   async moderate(
     actor: Actor,
     id: string,
     input: {
-      action: "permissions" | "remove" | "chat" | "hide-message";
+      action:
+        | "permissions"
+        | "remove"
+        | "end-student-session"
+        | "chat"
+        | "hide-message";
       identity?: string;
+      studentId?: string;
       microphone?: boolean;
       camera?: boolean;
       enabled?: boolean;
       messageId?: string;
     },
   ) {
+    const platform = await this.platform();
     return this.repository.transaction(async (state) => {
       const value = this.get(state, id);
       this.teacher(actor, value);
       if (value.status !== "Live" || !value.roomName)
         throw new LiveError(409, "The class is not live.");
+      if (input.action === "end-student-session") {
+        if (!input.studentId) throw new LiveError(400, "Select a student.");
+        if (
+          !this.classStudents(state, platform, value).some(
+            (student) => student.id === input.studentId,
+          )
+        )
+          throw new LiveError(404, "Student is not enrolled in this class.");
+        return this.endStudentSession(state, value, actor, input.studentId);
+      }
       if (input.action === "chat") value.chatEnabled = Boolean(input.enabled);
       else if (input.action === "hide-message") {
         const message = state.messages.find(
@@ -1225,19 +1365,7 @@ export class LiveService {
         );
         if (!ticket) throw new LiveError(404, "Connected student not found.");
         if (input.action === "remove") {
-          await this.video.remove(value.roomName, ticket.identity);
-          ticket.revoked = true;
-          this.event(
-            state,
-            actor.id,
-            "participant.removed",
-            id,
-            ticket.actorId,
-          );
-          const attendance = state.attendance.find(
-            (item) => item.sid === ticket.usedSid && !item.leftAt,
-          );
-          if (attendance) this.closeAttendance(attendance);
+          return this.endStudentSession(state, value, actor, ticket.actorId);
         } else {
           const microphone = Boolean(input.microphone),
             camera = Boolean(input.camera);

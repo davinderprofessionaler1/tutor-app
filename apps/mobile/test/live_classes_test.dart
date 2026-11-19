@@ -52,6 +52,25 @@ class FakeLiveApi extends LiveApi {
 }
 
 void main() {
+  testWidgets('a teacher-ended student cannot rejoin or buy access again',
+      (tester) async {
+    final data =
+        Map<String, dynamic>.from(sample(enrolled: true, status: 'Live').data)
+          ..['sessionEnded'] = true
+          ..['canJoin'] = false;
+    final value = LiveClass(data);
+    await tester.pumpWidget(MaterialApp(
+        home: LiveClassDetails(api: FakeLiveApi(value), value: value)));
+    await tester.pumpAndSettle();
+    final message = find.text(
+        'Your session was ended by the teacher. You cannot rejoin this class.');
+    await tester.scrollUntilVisible(message, 250);
+    expect(message, findsOneWidget);
+    expect(find.text('Join Live Class'), findsNothing);
+    expect(find.textContaining('Pay for Class'), findsNothing);
+    await tester.pumpWidget(const SizedBox());
+  });
+
   testWidgets('attendance history displays the server-recorded duration',
       (tester) async {
     await tester.pumpWidget(

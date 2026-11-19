@@ -8,10 +8,10 @@ Implemented on `feature/live-classroom` in the existing Next.js admin, Fastify A
 | ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Teacher admin     | Live Classes sidebar, searchable status listing, create/edit/schedule, time-zone conversion, teacher conflict checks, thumbnail upload, course association, prices, deadlines, capacity, instructions and objectives |
 | Course packages   | Group sessions under existing published courses; reuse their existing package prices and ownership                                                                                                                   |
-| Teacher classroom | LiveKit connection, camera/mic/screen controls, connection quality, elapsed time, participants, raise-hand requests, source-specific speaking/camera grants, removal, chat pause/hide, leave and end confirmation    |
+| Teacher classroom | LiveKit connection, camera/mic/screen controls, connection quality, elapsed time, participants, raise-hand requests, source-specific speaking/camera grants, full enrolled student roster, shared teacher/student video gallery, individual session ending, chat pause/hide, leave and end confirmation    |
 | Reports           | Class enrollment, individual/course access, payment/refund status, attendance across reconnects, revenue, audit history and CSV export                                                                               |
 | Student app       | Existing drawer entry, class discovery/status filters, My Classes, details, both purchase options, included sessions on existing course details, notifications and attendance history                                |
-| Student classroom | Teacher video/screen subscription, audio playback, connection quality, timer, participant count, chat, raise hand, teacher-approved camera/mic, background media pause, reconnect and leave                          |
+| Student classroom | Teacher video/screen with self-preview in one frame, audio playback, connection quality, timer, participant count, chat, raise hand, teacher-approved camera/mic, background media pause, reconnect and leave                          |
 | Notifications     | In-app enrollment/payment confirmation, scheduled-class reminder, start, reschedule, cancellation, completion and refund notices                                                                                     |
 
 The current platform has one admin identity. Its authenticated administrator is the teacher. A multi-teacher account system was not invented or substituted for existing authentication. Recording is disabled; no recording/egress service or paid notification provider was added.
@@ -35,6 +35,10 @@ Public signaling must pass through `infra/livekit/signaling-gateway.mjs`. The AP
 Initial JWTs last 30 seconds and are receive-only. Subscription is needed for ICE negotiation; there is no initial camera, microphone, data publishing or metadata-edit grant. A signed `participant_joined` webhook consumes the admission ticket and grants the teacher publishing sources, or the student's currently approved camera/microphone sources. Students start with both disabled. Chat uses authenticated application APIs and renders plain text.
 
 Ending/cancelling a class revokes its tickets, closes attendance and removes the SFU room. Failed cleanup is retried. Unexpected SFU room loss rotates the room epoch and permits fresh explicit admission while leaving the teacher's class Live. Duplicate signed participant events are idempotent. Attendance starts from trusted SFU joins, ends on trusted leaves/end, and uses heartbeat reconciliation to bound stale connections.
+
+The teacher gallery shows their own camera alongside each enrolled or historically attending student, with search, connection status, microphone activity, camera preview and enlargement. Approved student audio is attached once, independently of muted video previews. A browser that blocks autoplay offers an explicit audio activation control. Students see the teacher and their own camera in the same frame. Teacher approval permits publishing; each student must still turn their camera/microphone on locally. Camera and microphone can run simultaneously. Android permission dialogs do not stop capture; actual backgrounding still disables both.
+
+`end-student-session` takes a `studentId` and revokes all of that student's tickets for this class, closes their attendance, removes their SFU connections and prevents rejoining this class. The class stays Live for everyone else. Existing course access, purchases and other classes remain intact. Offline enrolled students can also have their session ended. If the SFU is unavailable, revocation is still committed, new admission is denied, and disconnection cleanup is retried. The admin confirmation explains the scope; the student sees “Session ended” without a reconnect or second purchase offer. The full roster, including email addresses, is returned only to the owning teacher, never in student heartbeats.
 
 The browser uses LiveKit's supported dual peer-connection mode for compatibility. Local ICE requires a reachable LAN/media address; a loopback-only SFU media socket cannot serve a physical phone. Production requires public media reachability and TURN fallback.
 
@@ -67,7 +71,8 @@ Base: `/api/v1/live`. Teacher requests use the existing admin session bearer; st
 | PATCH  | `/teacher/classes/:id`                            | Edit eligible class                            |
 | POST   | `/teacher/classes/:id/start`, `/end`, `/cancel`   | Lifecycle                                      |
 | POST   | `/teacher/classes/:id/join`, `/interact`          | Teacher admission/heartbeat/chat/leave         |
-| POST   | `/teacher/classes/:id/moderate`                   | Media grants, remove, pause chat, hide message |
+| POST   | `/teacher/classes/:id/moderate`                   | Media grants, end individual session, remove, pause chat, hide message |
+| GET    | `/teacher/classes/:id/students`                   | Teacher-only enrolled/historical student roster |
 | GET    | `/teacher/reports`, `/teacher/classes/:id/report` | Summary/enrollment/attendance/payments         |
 | POST   | `/teacher/orders/:id/refund`                      | Request full refund                            |
 | GET    | `/classes`, `/classes/:id`                        | Student discovery/details/access               |
@@ -85,7 +90,7 @@ New implementation:
 
 - `apps/admin/app/live-classes/{page.tsx,live.css,[id]/page.tsx}`
 - `apps/admin/app/api/live/[...path]/route.ts`
-- `apps/admin/components/live/{live-class-workspace.tsx,teacher-classroom.tsx}`
+- `apps/admin/components/live/{live-class-workspace.tsx,teacher-classroom.tsx,teacher-students.tsx}`
 - `apps/admin/lib/live-client.ts`
 - `apps/api/src/live/{types,store,auth,providers,service}.ts`
 - `apps/api/src/routes/live.ts`, `apps/api/scripts/migrate-live.ts`
@@ -111,9 +116,9 @@ Android Gradle settings already had device-build changes before module implement
 | Check                                                                 | Result                                                                                                                                                                                            |
 | --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Existing workspace typecheck and login widget before implementation   | Passed                                                                                                                                                                                            |
-| Backend service/HTTP/provider security scenarios                      | 18 passed                                                                                                                                                                                         |
+| Backend service/HTTP/provider security scenarios                      | 22 passed                                                                                                                                                                                         |
 | PostgreSQL migration using PGlite's PostgreSQL engine                 | 1 passed; applied twice, existing table preserved, constraints exercised                                                                                                                          |
-| Flutter widget tests including original login                         | 6 passed                                                                                                                                                                                          |
+| Flutter widget tests including original login                         | 7 passed                                                                                                                                                                                          |
 | Workspace TypeScript checks                                           | Passed                                                                                                                                                                                            |
 | API and admin production builds                                       | Passed                                                                                                                                                                                            |
 | Flutter analyzer                                                      | No errors/warnings; 5 informational Material import deprecations under Flutter 3.50                                                                                                               |
@@ -123,6 +128,8 @@ Android Gradle settings already had device-build changes before module implement
 | Actual admin attendance report                                        | Aggregated 3m42s for the two student sessions, Offline after end                                                                                                                                  |
 
 A subsequent guided demo on the same date verified real teacher camera playback on Samsung A12 and teacher audio, confirmed by the user after unmuting the laptop system microphone. Both chat directions, hand raise, teacher microphone approval, fresh rejoin and teacher ending the session were demonstrated. A USB reconnection had removed the local ADB reverse mappings; restoring ports 4000/7882/7881 restored the student connection. This was USB development tunnel recovery, not an external-network TURN or automatic-reconnect certification. The demo ended with the phone showing Completed and 5m12s aggregate student attendance across two visits. Camera/microphone capture stopped at end, and the laptop system microphone was returned to its prior muted state.
+
+A further physical-device check verified simultaneous teacher and student cameras on the admin's shared gallery and the phone's teacher/self-preview frame, with the phone microphone publishing at the same time. Admin microphone revocation disabled the phone mic while its camera stayed active, and student video enlargement was checked. The new automated cases cover teacher-only roster access, isolation between students/classes, offline session ending, repeat revocation and SFU failure cleanup. Student-to-admin audible playback still needs listener confirmation; a published audio track alone is not a hearing test.
 
 Evidence is stored outside Git in workspace `.tools`: `live-admin-connected.png`, `live-admin-attendance.png`, `live-admin-dashboard.png`, `live-student-connected.png`, `live-student-chat.png`, and test/build logs. Credentials and local class data are ignored.
 

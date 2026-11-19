@@ -5,6 +5,7 @@ import 'package:livekit_client/livekit_client.dart' as lk;
 import '../student_app.dart'
     show canvas, primary, muted, ink, line, SurfaceCard;
 import 'live_api.dart';
+import '../api.dart' show ApiFailure;
 
 class StudentClassroom extends StatefulWidget {
   const StudentClassroom({super.key, required this.api, required this.value});
@@ -23,6 +24,17 @@ class _StudentClassroomState extends State<StudentClassroom>
   bool busy = false, polling = false, raised = false, closing = false;
   String? error, closedStatus;
   int elapsed = 0;
+  String get closedMessage => closedStatus == 'Session ended'
+      ? 'Your session was ended by the teacher.'
+      : 'Class $closedStatus. This session is closed.';
+  void updateClosedStatus(LiveClass latest) {
+    if (latest.sessionEnded) {
+      closedStatus = 'Session ended';
+    } else if (latest.status == 'Completed' || latest.status == 'Cancelled') {
+      closedStatus = latest.status;
+    }
+  }
+
   @override
   void initState() {
     super.initState();
@@ -54,8 +66,10 @@ class _StudentClassroomState extends State<StudentClassroom>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.paused ||
-        state == AppLifecycleState.inactive) {
+    // Permission dialogs briefly make the foreground app inactive. Pause capture
+    // when it actually enters the background, so granting permission doesn't
+    // immediately queue a camera/microphone stop behind the user's start action.
+    if (state == AppLifecycleState.paused) {
       unawaited(room?.localParticipant?.setCameraEnabled(false));
       unawaited(room?.localParticipant?.setMicrophoneEnabled(false));
     }
@@ -114,6 +128,9 @@ class _StudentClassroomState extends State<StudentClassroom>
       subscribeTeacher();
       await pulse();
     } catch (failure) {
+      if (failure is ApiFailure && failure.code == 'STUDENT_SESSION_ENDED') {
+        closedStatus = 'Session ended';
+      }
       if (mounted) setState(() => error = failure.toString());
       await leave();
     } finally {
@@ -145,15 +162,13 @@ class _StudentClassroomState extends State<StudentClassroom>
       polling = true;
       try {
         final latest = await widget.api.detail(widget.value.id);
-        if (latest.status == 'Completed' || latest.status == 'Cancelled') {
-          closedStatus = latest.status;
-        }
+        updateClosedStatus(latest);
       } catch (_) {/* A network failure can still be retried. */}
       await leave();
       if (mounted) {
         setState(() => error = closedStatus == null
             ? 'Connection lost. Reconnect to rejoin the classroom.'
-            : 'Class $closedStatus. This session is closed.');
+            : closedMessage);
       }
       polling = false;
       return;
@@ -185,14 +200,11 @@ class _StudentClassroomState extends State<StudentClassroom>
           failure.toString().contains('enrollment')) {
         try {
           final latest = await widget.api.detail(widget.value.id);
-          if (latest.status == 'Completed' || latest.status == 'Cancelled') {
-            closedStatus = latest.status;
-          }
+          updateClosedStatus(latest);
         } catch (_) {/* Keep the original session error. */}
         await leave();
         if (mounted && closedStatus != null) {
-          setState(
-              () => error = 'Class $closedStatus. This session is closed.');
+          setState(() => error = closedMessage);
         }
       }
     } finally {
@@ -251,6 +263,8 @@ class _StudentClassroomState extends State<StudentClassroom>
   @override
   Widget build(BuildContext context) {
     final video = stage, local = room?.localParticipant;
+    final ownCamera =
+        local?.getTrackPublicationBySource(lk.TrackSource.camera)?.track;
     final messages = snapshot?['messages'] as List? ?? [],
         participants = snapshot?['participants'] as List? ?? [];
     final connected = room?.connectionState == lk.ConnectionState.connected;
@@ -279,40 +293,93 @@ class _StudentClassroomState extends State<StudentClassroom>
                 style: const TextStyle(color: muted))
           ]),
           const SizedBox(height: 14),
-          ClipRRect(
-              borderRadius: BorderRadius.circular(18),
-              child: AspectRatio(
-                  aspectRatio: 16 / 10,
-                  child: ColoredBox(
-                      color: ink,
-                      child: video != null
-                          ? lk.VideoTrackRenderer(video)
-                          : Center(
-                              child: Padding(
-                                  padding: const EdgeInsets.all(24),
-                                  child: Column(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.center,
-                                      children: [
-                                        if (busy)
-                                          const CircularProgressIndicator()
-                                        else
-                                          const Icon(
-                                              Icons.videocam_off_outlined,
-                                              color: Colors.white70,
-                                              size: 42),
-                                        const SizedBox(height: 14),
-                                        Text(
-                                            busy
-                                                ? 'Connecting to your classroom…'
-                                                : connected
-                                                    ? 'Waiting for the teacher’s camera or screen share.'
-                                                    : 'The classroom connection is closed.',
-                                            textAlign: TextAlign.center,
-                                            style: const TextStyle(
+          Stack(children: [
+            ClipRRect(
+                borderRadius: BorderRadius.circular(18),
+                child: AspectRatio(
+                    aspectRatio: 16 / 10,
+                    child: ColoredBox(
+                        color: ink,
+                        child: video != null
+                            ? lk.VideoTrackRenderer(video)
+                            : Center(
+                                child: Padding(
+                                    padding: const EdgeInsets.all(24),
+                                    child: Column(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.center,
+                                        children: [
+                                          if (busy)
+                                            const CircularProgressIndicator()
+                                          else
+                                            const Icon(
+                                                Icons.videocam_off_outlined,
                                                 color: Colors.white70,
-                                                height: 1.5))
-                                      ])))))),
+                                                size: 42),
+                                          const SizedBox(height: 14),
+                                          Text(
+                                              busy
+                                                  ? 'Connecting to your classroom…'
+                                                  : connected
+                                                      ? 'Waiting for the teacher’s camera or screen share.'
+                                                      : 'The classroom connection is closed.',
+                                              textAlign: TextAlign.center,
+                                              style: const TextStyle(
+                                                  color: Colors.white70,
+                                                  height: 1.5))
+                                        ])))))),
+            Positioned(
+                top: 10,
+                left: 10,
+                child: DecoratedBox(
+                    decoration: BoxDecoration(
+                        color: ink, borderRadius: BorderRadius.circular(6)),
+                    child: const Padding(
+                        padding:
+                            EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+                        child: Text('Teacher',
+                            style: TextStyle(
+                                color: Colors.white, fontSize: 11))))),
+            if (connected)
+              Positioned(
+                  right: 10,
+                  bottom: 10,
+                  width: (MediaQuery.sizeOf(context).width * .28)
+                      .clamp(104.0, 144.0),
+                  child: Container(
+                      decoration: BoxDecoration(
+                          color: ink,
+                          border: Border.all(color: line, width: 2),
+                          borderRadius: BorderRadius.circular(10)),
+                      clipBehavior: Clip.antiAlias,
+                      child: Column(mainAxisSize: MainAxisSize.min, children: [
+                        AspectRatio(
+                            aspectRatio: 4 / 5,
+                            child: ownCamera is lk.VideoTrack &&
+                                    local?.isCameraEnabled() == true
+                                ? lk.VideoTrackRenderer(
+                                    ownCamera as lk.VideoTrack)
+                                : const Center(
+                                    child: Icon(Icons.videocam_off_outlined,
+                                        color: Colors.white70))),
+                        Padding(
+                            padding: const EdgeInsets.all(5),
+                            child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(
+                                      local?.isMicrophoneEnabled() == true
+                                          ? Icons.mic
+                                          : Icons.mic_off_outlined,
+                                      color: Colors.white70,
+                                      size: 12),
+                                  const SizedBox(width: 4),
+                                  const Text('You',
+                                      style: TextStyle(
+                                          color: Colors.white, fontSize: 11))
+                                ]))
+                      ])))
+          ]),
           const SizedBox(height: 14),
           if (error != null)
             Padding(
@@ -338,7 +405,9 @@ class _StudentClassroomState extends State<StudentClassroom>
                     ? Icons.mic
                     : Icons.mic_off_outlined),
                 label: Text(snapshot?['microphone'] == true
-                    ? 'Microphone'
+                    ? local?.isMicrophoneEnabled() == true
+                        ? 'Microphone on'
+                        : 'Microphone off'
                     : 'Mic needs teacher approval')),
             OutlinedButton.icon(
                 onPressed: snapshot?['camera'] == true && connected
@@ -346,7 +415,9 @@ class _StudentClassroomState extends State<StudentClassroom>
                         () => local!.setCameraEnabled(!local.isCameraEnabled()))
                     : null,
                 icon: const Icon(Icons.videocam_outlined),
-                label: const Text('Camera')),
+                label: Text(local?.isCameraEnabled() == true
+                    ? 'Camera on'
+                    : 'Camera off')),
             if (!connected && closedStatus == null)
               OutlinedButton(
                   onPressed: busy ? null : connect,

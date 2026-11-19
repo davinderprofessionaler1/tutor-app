@@ -619,6 +619,25 @@ test("Fastify enforces admin/student authentication, input validation and existi
     ).statusCode,
     401,
   );
+  const classId = saved.json().data.id;
+  assert.equal(
+    (
+      await app.inject({
+        url: `/api/v1/live/teacher/classes/${classId}/students`,
+        headers: { authorization: `Bearer ${teacherToken}` },
+      })
+    ).statusCode,
+    200,
+  );
+  assert.equal(
+    (
+      await app.inject({
+        url: `/api/v1/live/teacher/classes/${classId}/students`,
+        headers: { authorization: `Bearer ${studentToken}` },
+      })
+    ).statusCode,
+    401,
+  );
   f.platform.students[0]!.status = "Blocked";
   assert.equal(
     (
@@ -779,4 +798,206 @@ test("LiveKit webhook rejects an unsigned participant event before changing gran
   } finally {
     await app.close();
   }
+});
+
+test("teacher roster includes online/offline enrollment and is private from students and other teachers", async () => {
+  const f = fixture(),
+    { data } = await f.service.save(teacher, { ...f.input, price: 0 });
+  await f.service.checkout(student, data.id, "class", "roster_first");
+  f.platform.students[1]!.courseIds.push("course");
+  const roster = await f.service.students(teacher, data.id);
+  assert.deepEqual(roster.data.map((item) => item.id).sort(), [
+    student.id,
+    second.id,
+  ]);
+  assert.equal(
+    roster.data.every((item) => !item.connected && !item.identity),
+    true,
+  );
+  await assert.rejects(f.service.students(student, data.id), /teacher/);
+  await assert.rejects(
+    f.service.students({ ...teacher, id: "other" }, data.id),
+    /teacher/,
+  );
+  await f.service.lifecycle(teacher, data.id, "start");
+  const joined = await f.service.join(student, data.id);
+  await f.service.videoWebhook({
+    id: "roster-joined",
+    event: "participant_joined",
+    room: { name: f.repo.state.classes[0]!.roomName! },
+    participant: { identity: joined.identity, sid: "roster-sid" },
+  });
+  assert.equal(
+    (await f.service.students(teacher, data.id)).data.find(
+      (item) => item.id === student.id,
+    )!.connected,
+    true,
+  );
+  assert.equal(
+    (
+      await f.service.interaction(student, data.id, {
+        action: "heartbeat",
+        ticketId: joined.ticketId,
+      })
+    ).students,
+    undefined,
+  );
+  const teacherJoin = await f.service.join(teacher, data.id),
+    snapshot = await f.service.interaction(teacher, data.id, {
+      action: "heartbeat",
+      ticketId: teacherJoin.ticketId,
+    });
+  assert.equal(snapshot.students?.length, 2);
+  assert.equal(
+    snapshot.students?.find((item) => item.id === second.id)?.connected,
+    false,
+  );
+});
+test("ending one student stops only their attendance/admission while the class and another student continue", async () => {
+  const f = fixture(),
+    { data } = await f.service.save(teacher, { ...f.input, price: 0 });
+  const later = await f.service.save(teacher, {
+    ...f.input,
+    startsAt: "2026-11-19T14:00:00Z",
+    price: 0,
+  });
+  for (const actor of [student, second])
+    await f.service.checkout(actor, data.id, "class", `enroll_end_${actor.id}`);
+  await f.service.lifecycle(teacher, data.id, "start");
+  const a = await f.service.join(student, data.id),
+    b = await f.service.join(second, data.id);
+  for (const [index, joined] of [a, b].entries())
+    await f.service.videoWebhook({
+      id: `end-joined-${index}`,
+      event: "participant_joined",
+      room: { name: f.repo.state.classes[0]!.roomName! },
+      participant: { identity: joined.identity, sid: `end-sid-${index}` },
+    });
+  await assert.rejects(
+    f.service.moderate(student, data.id, {
+      action: "end-student-session",
+      studentId: second.id,
+    }),
+    /teacher/,
+  );
+  await assert.rejects(
+    f.service.moderate({ ...teacher, id: "other" }, data.id, {
+      action: "end-student-session",
+      studentId: student.id,
+    }),
+    /teacher/,
+  );
+  await assert.rejects(
+    f.service.moderate(teacher, data.id, {
+      action: "end-student-session",
+      studentId: "not-enrolled",
+    }),
+    /not enrolled/,
+  );
+  f.advance(10000);
+  await f.service.moderate(teacher, data.id, {
+    action: "end-student-session",
+    studentId: student.id,
+  });
+  await f.service.moderate(teacher, data.id, {
+    action: "end-student-session",
+    studentId: student.id,
+  });
+  assert.equal(f.repo.state.classes[0]!.status, "Live");
+  assert.equal(
+    f.repo.state.attendance.find((item) => item.studentId === student.id)!
+      .durationSeconds,
+    10,
+  );
+  assert.equal(
+    f.repo.state.attendance.find((item) => item.studentId === second.id)!
+      .leftAt,
+    null,
+  );
+  await assert.rejects(f.service.join(student, data.id), {
+    code: "STUDENT_SESSION_ENDED",
+  });
+  await assert.rejects(
+    f.service.interaction(student, data.id, {
+      action: "heartbeat",
+      ticketId: a.ticketId,
+    }),
+    { code: "STUDENT_SESSION_ENDED" },
+  );
+  assert.equal(
+    (
+      await f.service.interaction(second, data.id, {
+        action: "heartbeat",
+        ticketId: b.ticketId,
+      })
+    ).status,
+    "Live",
+  );
+  const detail = (await f.service.detail(student, data.id)).data;
+  assert.equal(detail.accessible, true);
+  assert.equal(detail.canJoin, false);
+  assert.equal(detail.sessionEnded, true);
+  assert.equal(
+    (await f.service.detail(student, later.data.id)).data.sessionEnded,
+    false,
+  );
+  assert.equal(
+    (await f.service.students(teacher, data.id)).data.find(
+      (item) => item.id === student.id,
+    )?.sessionEnded,
+    true,
+  );
+  assert.equal(
+    f.repo.state.events.filter((item) => item.type === "participant.removed")
+      .length,
+    1,
+  );
+});
+test("teacher can end an offline enrolled student's session without revoking their course", async () => {
+  const f = fixture();
+  f.platform.students[0]!.courseIds.push("course");
+  const { data } = await f.service.save(teacher, f.input);
+  await f.service.lifecycle(teacher, data.id, "start");
+  await f.service.moderate(teacher, data.id, {
+    action: "end-student-session",
+    studentId: student.id,
+  });
+  await assert.rejects(f.service.join(student, data.id), {
+    code: "STUDENT_SESSION_ENDED",
+  });
+  assert.deepEqual(f.platform.students[0]!.courseIds, ["course"]);
+  assert.equal(
+    f.video.calls.filter((item) => item.action === "remove").length,
+    0,
+  );
+});
+test("failed SFU removal still revokes the student, with cleanup retried by reconciliation", async () => {
+  const f = fixture(),
+    { data } = await f.service.save(teacher, { ...f.input, price: 0 });
+  await f.service.checkout(student, data.id, "class", "cleanup_checkout");
+  await f.service.lifecycle(teacher, data.id, "start");
+  const joined = await f.service.join(student, data.id);
+  await f.service.videoWebhook({
+    id: "cleanup-joined",
+    event: "participant_joined",
+    room: { name: f.repo.state.classes[0]!.roomName! },
+    participant: { identity: joined.identity, sid: "cleanup-sid" },
+  });
+  const remove = f.video.remove.bind(f.video);
+  f.video.remove = async () => {
+    throw new Error("SFU unavailable");
+  };
+  const result = await f.service.moderate(teacher, data.id, {
+    action: "end-student-session",
+    studentId: student.id,
+  });
+  assert.equal(result.disconnectPending, true);
+  assert.equal(f.repo.state.tickets[0]!.revoked, true);
+  assert.ok(f.repo.state.attendance[0]!.leftAt);
+  await assert.rejects(f.service.join(student, data.id), {
+    code: "STUDENT_SESSION_ENDED",
+  });
+  f.video.remove = remove;
+  await f.service.tick();
+  assert.equal(f.repo.state.tickets[0]!.usedSid, null);
 });

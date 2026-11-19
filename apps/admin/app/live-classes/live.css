@@ -216,6 +216,136 @@
   background: var(--soft);
   color: var(--ink);
 }
+.live-students {
+  margin-top: 0;
+  padding: 18px;
+}
+.live-students-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.live-students-header h2 {
+  margin: 0;
+}
+.live-students-header p,
+.live-students-help {
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.6;
+}
+.live-students-filters {
+  display: flex;
+  gap: 8px;
+  margin: 14px 0;
+  flex-wrap: wrap;
+}
+.live-students-filters input,
+.live-students-filters select {
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  padding: 9px;
+  font: inherit;
+  font-size: 10px;
+  background: var(--paper);
+  color: var(--ink);
+  min-width: 0;
+}
+.live-students-filters input {
+  flex: 1;
+  min-width: 130px;
+}
+.live-student-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr));
+  gap: 14px;
+}
+.live-student-grid:has(> :nth-child(2)) {
+  grid-template-columns: repeat(auto-fit, minmax(min(190px, 45%), 1fr));
+}
+.live-student-card {
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+}
+.live-student-video {
+  aspect-ratio: 16 / 10;
+  background: var(--bg);
+  overflow: hidden;
+}
+.live-student-video video {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.live-student-placeholder {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+  font-size: 10px;
+}
+.live-student-placeholder strong {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: var(--soft);
+  color: var(--primary);
+  font-size: 16px;
+}
+.live-student-info {
+  padding: 12px;
+  font-size: 11px;
+}
+.live-student-info > small {
+  display: block;
+  color: var(--muted);
+  margin-top: 4px;
+  overflow-wrap: anywhere;
+}
+.live-student-status {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  margin: 10px 0;
+  font-size: 9px;
+  color: var(--muted);
+}
+.live-student-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+.live-student-actions button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.live-end-student {
+  border-color: var(--primary);
+}
+.live-student-confirm {
+  width: min(440px, 100%);
+}
+.live-student-confirm > p {
+  padding: 0 22px;
+  font-size: 11px;
+  line-height: 1.7;
+  color: var(--muted);
+}
+.live-student-focus {
+  width: min(900px, 100%);
+}
+.live-student-focus video {
+  width: 100%;
+  max-height: 70vh;
+  background: var(--bg);
+}
 @media (max-width: 1000px) {
   .live-room {
     grid-template-columns: 1fr;

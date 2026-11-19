@@ -416,7 +416,12 @@ class _LiveClassDetailsState extends State<LiveClassDetails>
           Padding(
               padding: const EdgeInsets.only(bottom: 14),
               child: Text(error!, style: const TextStyle(color: muted))),
-        if (value.canJoin)
+        if (value.sessionEnded)
+          const SurfaceCard(
+              child: Text(
+                  'Your session was ended by the teacher. You cannot rejoin this class.',
+                  style: TextStyle(color: muted)))
+        else if (value.canJoin)
           FilledButton.icon(
               onPressed: busy
                   ? null
