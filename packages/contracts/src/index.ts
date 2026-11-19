@@ -11,7 +11,7 @@ export interface LiveClassView {
 }
 export interface ClassroomParticipant { identity: string; name: string; role: "teacher" | "student"; raisedHand: boolean; microphone: boolean; camera: boolean }
 export interface ClassroomMessage { id: string; name: string; role: "teacher" | "student"; text: string; createdAt: string }
-export interface ClassroomSnapshot { ok: boolean; status: string; chatEnabled: boolean; microphone: boolean; camera: boolean; participants: ClassroomParticipant[]; messages: ClassroomMessage[] }
+export interface ClassroomSnapshot { ok: boolean; status: string; chatEnabled: boolean; microphone: boolean; camera: boolean; raisedHand: boolean; participants: ClassroomParticipant[]; messages: ClassroomMessage[] }
 export interface ClassroomJoin { token: string; url: string; identity: string; ticketId: string; title: string; startedAt: string }
 export type CourseAccess = "Lifetime" | "Fixed duration";
 

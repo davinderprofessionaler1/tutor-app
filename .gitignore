@@ -24,3 +24,4 @@ apps/api/data/
 infra/livekit/.env
 infra/livekit/livekit.generated.yaml
 infra/livekit/certs/
+apps/mobile/android/.kotlin/

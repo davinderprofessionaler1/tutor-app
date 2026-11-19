@@ -8,7 +8,7 @@
     "build": "tsc -p tsconfig.json",
     "start": "node dist/server.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test:live": "node --import tsx --test test/live.test.ts",
+    "test:live": "node --import tsx --test test/live.test.ts test/live-postgres.test.ts",
     "db:migrate:live": "tsx scripts/migrate-live.ts",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
@@ -26,6 +26,7 @@
     "zod": "4.6.5"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.16",
     "@types/node": "26.6.2",
     "@types/pg": "^8.23.1",
     "prisma": "7.10.0",

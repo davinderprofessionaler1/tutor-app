@@ -10,6 +10,7 @@ const navigation = [
   { href: "/students", label: "Students", icon: Icons.students },
   { href: "/courses", label: "Courses", icon: Icons.courses },
   { href: "/videos", label: "Video library", icon: Icons.video },
+  { href: "/live-classes", label: "Live Classes", icon: Icons.video },
   { href: "/orders", label: "Orders", icon: Icons.orders },
   { href: "/coupons", label: "Coupons", icon: Icons.coupon },
   { href: "/reviews", label: "Reviews", icon: Icons.reviews },

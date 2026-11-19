@@ -8,11 +8,14 @@ services:
       - ./certs:/certs:ro
     ports:
       - "127.0.0.1:7880:7880"
+      - "127.0.0.1:6789:6789"
       - "7881:7881/tcp"
       - "50000-50100:50000-50100/udp"
       - "3478:3478/udp"
       - "5349:5349/tcp"
     networks: [classroom]
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
   signaling:
     image: node:22-alpine
     command: node /app/signaling-gateway.mjs
@@ -27,6 +30,8 @@ services:
     ports:
       - "127.0.0.1:7882:7882"
     networks: [classroom]
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     healthcheck:
       test: [CMD, node, -e, "fetch('http://127.0.0.1:7882/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 30s

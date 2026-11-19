@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 
 import 'api.dart';
 import 'models.dart';
+import 'live/live_classes_page.dart';
 
 const primary = Color(0xFF006D2F);
 const accent = Color(0xFF25D366);
@@ -1313,6 +1314,7 @@ class _TutorialPageState extends State<TutorialPage> {
               ]),
             ]),
           ),
+          LiveCourseSessions(courseId: tutorial.id),
           const SizedBox(height: 22),
           SectionHeader(
               title: 'Course Videos',
@@ -2093,6 +2095,17 @@ class AppDrawer extends StatelessWidget {
               icon: Icons.settings_outlined,
               label: 'Settings',
               onTap: onSettings,
+            ),
+            DrawerMenuItem(
+              icon: Icons.video_camera_front_outlined,
+              label: 'Live Classes',
+              onTap: () async {
+                final token = await native.invokeMethod<String>('readToken');
+                if (!context.mounted || token == null) return;
+                final navigator = Navigator.of(context);
+                navigator.pop();
+                await navigator.push(MaterialPageRoute(builder: (_) => LiveClassesPage(token: token)));
+              },
             ),
             DrawerMenuItem(
               icon: Icons.support_agent_outlined,
