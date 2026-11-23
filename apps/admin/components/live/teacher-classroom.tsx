@@ -19,6 +19,7 @@ import type {
 import { TeacherRecording } from "./teacher-recording";
 import { TeacherStudents } from "./teacher-students";
 import { Topbar } from "../topbar";
+import { useActionDialog } from "../action-dialog";
 import { liveRequest, LiveRequestError } from "../../lib/live-client";
 
 function Video({ track }: { track: Track }) {
@@ -47,6 +48,7 @@ function Audio({ track }: { track: RemoteAudioTrack }) {
 }
 
 export function TeacherClassroom({ id }: { id: string }) {
+  const { confirm } = useActionDialog();
   const [value, setValue] = useState<LiveClassView | null>(null),
     [room, setRoom] = useState<Room | null>(null);
   const [snapshot, setSnapshot] = useState<ClassroomSnapshot | null>(null),
@@ -421,9 +423,13 @@ export function TeacherClassroom({ id }: { id: string }) {
                   disabled={busy}
                   onClick={async () => {
                     if (
-                      !window.confirm(
-                        "End this class for everyone? Students will be disconnected and cannot rejoin this session.",
-                      )
+                      !await confirm({
+                        title: "End class for everyone?",
+                        description: "Students will be disconnected and cannot rejoin this session.",
+                        confirmLabel: "End class",
+                        cancelLabel: "Keep teaching",
+                        tone: "danger",
+                      })
                     )
                       return;
                     setBusy(true);

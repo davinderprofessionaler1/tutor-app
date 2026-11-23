@@ -15,7 +15,7 @@
   text-align: left;
 }
 .live-table td {
-  font-size: 9px;
+  font-size: 12px;
   height: 76px;
   border-top: 1px solid var(--line);
 }
@@ -41,7 +41,7 @@
   border: 1px solid var(--line);
   border-radius: 4px;
   color: var(--primary);
-  font-size: 8px;
+  font-size: 12px;
   font-weight: 700;
 }
 .live-status-live {
@@ -63,7 +63,7 @@
 }
 .live-detail {
   padding: 22px;
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1.7;
 }
 .live-detail p {
@@ -101,7 +101,7 @@
 }
 .live-packages p {
   color: var(--muted);
-  font-size: 10px;
+  font-size: 12px;
   line-height: 1.7;
 }
 .live-room {
@@ -161,7 +161,7 @@
 .live-participants article {
   padding: 12px 0;
   border-top: 1px solid var(--line);
-  font-size: 10px;
+  font-size: 12px;
 }
 .live-participants article > div {
   display: flex;
@@ -173,7 +173,7 @@
 .live-chat-log {
   height: 220px;
   overflow: auto;
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1.6;
 }
 .live-chat-log p {
@@ -181,7 +181,7 @@
   overflow-wrap: anywhere;
 }
 .live-chat-log strong {
-  font-size: 9px;
+  font-size: 12px;
   color: var(--primary);
 }
 .live-chat form {
@@ -194,7 +194,7 @@
   padding: 10px;
   border: 1px solid var(--line);
   border-radius: 5px;
-  font-size: 11px;
+  font-size: 12px;
 }
 .live-connection {
   display: flex;
@@ -202,7 +202,7 @@
   gap: 12px;
   flex-wrap: wrap;
   color: var(--muted);
-  font-size: 11px;
+  font-size: 12px;
   margin-bottom: 14px;
 }
 .live-room-error {
@@ -210,7 +210,7 @@
   border: 1px solid var(--line);
   border-radius: 7px;
   margin-bottom: 14px;
-  font-size: 11px;
+  font-size: 12px;
 }
 .live-controls button[aria-pressed="true"] {
   background: var(--soft);
@@ -232,7 +232,7 @@
 .live-students-header p,
 .live-students-help {
   color: var(--muted);
-  font-size: 10px;
+  font-size: 12px;
   line-height: 1.6;
 }
 .live-students-filters {
@@ -247,7 +247,7 @@
   border-radius: 5px;
   padding: 9px;
   font: inherit;
-  font-size: 10px;
+  font-size: 12px;
   background: var(--paper);
   color: var(--ink);
   min-width: 0;
@@ -287,7 +287,7 @@
   align-items: center;
   justify-content: center;
   color: var(--muted);
-  font-size: 10px;
+  font-size: 12px;
 }
 .live-student-placeholder strong {
   display: grid;
@@ -301,7 +301,7 @@
 }
 .live-student-info {
   padding: 12px;
-  font-size: 11px;
+  font-size: 12px;
 }
 .live-student-info > small {
   display: block;
@@ -314,7 +314,7 @@
   flex-wrap: wrap;
   gap: 6px 12px;
   margin: 10px 0;
-  font-size: 9px;
+  font-size: 12px;
   color: var(--muted);
 }
 .live-student-actions {
@@ -334,7 +334,7 @@
 }
 .live-student-confirm > p {
   padding: 0 22px;
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1.7;
   color: var(--muted);
 }
@@ -397,7 +397,7 @@
 }
 .live-student-info > .text-action {
   float: right;
-  font-size: 10px;
+  font-size: 12px;
 }
 .live-students:fullscreen {
   background: var(--paper);
@@ -423,7 +423,7 @@
   align-items: center;
   gap: 8px;
   margin-top: 8px;
-  font-size: 11px;
+  font-size: 12px;
 }
 .live-waiting-row strong {
   flex: 1;
@@ -432,7 +432,7 @@
 .live-recording > label {
   display: block;
   padding: 0 18px 12px;
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1.7;
 }
 .live-recording .live-student-actions,
@@ -442,5 +442,5 @@
 .live-recording input[type="file"] {
   display: block;
   max-width: 180px;
-  font-size: 10px;
+  font-size: 12px;
 }

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
+import { ActionDialogProvider } from "../components/action-dialog";
 import { TeacherStudents } from "../components/live/teacher-students";
 import type { ClassroomStudent } from "@tutor/contracts";
 
@@ -23,7 +24,7 @@ test("all 50 enrolled students remain in the initial gallery, including connecte
     }),
   );
   const markup = renderToStaticMarkup(
-    createElement(TeacherStudents, {
+    createElement(ActionDialogProvider, { children: createElement(TeacherStudents, {
       students,
       room: null,
       live: true,
@@ -42,7 +43,7 @@ test("all 50 enrolled students remain in the initial gallery, including connecte
           },
         ],
       },
-    }),
+    }) }),
   );
   for (const student of students)
     assert.ok(

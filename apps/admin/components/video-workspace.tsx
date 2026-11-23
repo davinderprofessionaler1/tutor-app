@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { Icons } from "./icons";
 import { Topbar } from "./topbar";
 import { useToast } from "./toast";
+import { useActionDialog } from "./action-dialog";
 import { formatBytes, uploadFile } from "../lib/upload-client";
 
 type Video = { id: string; title: string; course: string; provider: string; sourceUrl: string; durationMinutes: number; status: string; downloadReady: boolean; updatedAt: string };
@@ -21,6 +22,7 @@ async function jsonResponse(response: Response) {
 
 export function VideoWorkspace() {
   const { showToast } = useToast();
+  const { confirm } = useActionDialog();
   const fileInput = useRef<HTMLInputElement>(null);
   const [videos, setVideos] = useState<Video[]>([]);
   const [courses, setCourses] = useState<Course[]>([]);
@@ -85,7 +87,7 @@ export function VideoWorkspace() {
   }
 
   async function remove(video: Video) {
-    if (!window.confirm(`Delete ${video.title}? It will also be removed from course chapters.`)) return;
+    if (!await confirm({ title: "Delete video?", description: `“${video.title}” will also be removed from course chapters. This cannot be undone.`, confirmLabel: "Delete video", tone: "danger" })) return;
     try {
       await jsonResponse(await fetch(`/api/admin/resources/videos?id=${encodeURIComponent(video.id)}`, { method: "DELETE" }));
       setVideos((current) => current.filter((item) => item.id !== video.id));
@@ -103,7 +105,7 @@ export function VideoWorkspace() {
   }
 
   async function removeSelected() {
-    if (!selected.size || !window.confirm(`Delete ${selected.size} selected videos? They will also be removed from course chapters.`)) return;
+    if (!selected.size || !await confirm({ title: `Delete ${selected.size} videos?`, description: "These videos will also be removed from course chapters. This cannot be undone.", confirmLabel: "Delete videos", tone: "danger" })) return;
     const ids = [...selected];
     try {
       await jsonResponse(await fetch(`/api/admin/resources/videos?ids=${encodeURIComponent(ids.join(","))}`, { method: "DELETE" }));

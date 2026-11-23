@@ -10,8 +10,10 @@ import {
 } from "react";
 import type { LiveClassView } from "@tutor/contracts";
 import { Icons } from "../icons";
+import { useModalFocus } from "../use-modal-focus";
 import { Topbar } from "../topbar";
 import { useToast } from "../toast";
+import { useActionDialog } from "../action-dialog";
 import { uploadFile } from "../../lib/upload-client";
 import {
   liveMoney,
@@ -73,6 +75,7 @@ type Editor = {
 
 export function LiveClassWorkspace() {
   const { showToast } = useToast();
+  const { confirm } = useActionDialog();
   const [classes, setClasses] = useState<LiveClassView[]>([]),
     [courses, setCourses] = useState<Course[]>([]);
   const [teacher, setTeacher] = useState(""),
@@ -92,6 +95,16 @@ export function LiveClassWorkspace() {
     paymentsConfigured: false,
   });
   const thumbnail = useRef<HTMLInputElement>(null);
+  const newHandled = useRef(false);
+  useModalFocus(Boolean(editor), () => setEditor(null));
+  useEffect(() => {
+    if (!loading && !newHandled.current && new URLSearchParams(window.location.search).get("new") === "1") { newHandled.current = true; edit(); }
+  }, [loading]);
+  useEffect(() => {
+    const create = () => edit();
+    window.addEventListener("admin-create-live-class", create);
+    return () => window.removeEventListener("admin-create-live-class", create);
+  }, []);
   const load = useCallback(async () => {
     try {
       const [list, summary] = await Promise.all([
@@ -176,9 +189,13 @@ export function LiveClassWorkspace() {
   async function action(value: LiveClassView, kind: "start" | "cancel") {
     if (
       kind === "cancel" &&
-      !window.confirm(
-        `Cancel ${value.title}? Students will lose session access. Captured payments will be flagged for refund review.`,
-      )
+      !await confirm({
+        title: "Cancel live class?",
+        description: `“${value.title}”: students will lose session access. Captured payments will be flagged for refund review.`,
+        confirmLabel: "Cancel class",
+        cancelLabel: "Keep class",
+        tone: "danger",
+      })
     )
       return;
     setPending(true);
@@ -308,11 +325,11 @@ export function LiveClassWorkspace() {
   return (
     <>
       <Topbar
-        title="Live Classes"
+        title="Live Classes Management"
         subtitle="Schedule sessions, teach live and follow student attendance."
         action={
           <button className="primary-action" onClick={() => edit()}>
-            <Icons.plus /> Create live class
+            <Icons.plus /> Schedule Class
           </button>
         }
       />
@@ -352,7 +369,7 @@ export function LiveClassWorkspace() {
             </button>
           </div>
         )}
-        {!setup.videoConfigured && (
+        {!loading && !setup.videoConfigured && (
           <div className="resource-notice">
             Live video setup is pending. You can create and schedule classes
             now; starting a classroom becomes available after setup.
@@ -658,9 +675,12 @@ export function LiveClassWorkspace() {
                               className="secondary-action"
                               onClick={async () => {
                                 if (
-                                  !window.confirm(
-                                    `Submit a full ${liveMoney(order.amount)} Razorpay refund?`,
-                                  )
+                                  !await confirm({
+                                    title: "Request full refund?",
+                                    description: `Submit a full ${liveMoney(order.amount)} Razorpay refund for ${order.studentName}?`,
+                                    confirmLabel: "Request refund",
+                                    tone: "danger",
+                                  })
                                 )
                                   return;
                                 try {
@@ -710,7 +730,7 @@ export function LiveClassWorkspace() {
               <header>
                 <div>
                   <small>Live classroom</small>
-                  <h2>{editor.id ? "Edit live class" : "Create live class"}</h2>
+                  <h2>{editor.id ? "Edit Live Class" : "Schedule New Live Class"}</h2>
                 </div>
                 <button
                   aria-label="Close class editor"
@@ -846,6 +866,7 @@ export function LiveClassWorkspace() {
                       }
                     />
                   </label>
+                  <div className="calculated-end" aria-live="polite"><strong>Calculated end time</strong><br />{classEndTime(editor)}</div>
                   <label>
                     Maximum students
                     <input
@@ -1140,4 +1161,12 @@ export function LiveClassWorkspace() {
       </div>
     </>
   );
+}
+
+function classEndTime(editor: Editor) {
+  try {
+    if (!editor.startsAt || editor.durationMinutes <= 0) return "Choose a start time and duration.";
+    const end = new Date(new Date(zonedIso(editor.startsAt, editor.timeZone)).getTime() + editor.durationMinutes * 60000);
+    return `${new Intl.DateTimeFormat("en-IN", { timeZone: editor.timeZone, dateStyle: "medium", timeStyle: "short" }).format(end)} · ${editor.timeZone}`;
+  } catch { return "Choose a valid date and time zone."; }
 }

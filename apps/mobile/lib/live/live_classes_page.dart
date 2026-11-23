@@ -10,8 +10,13 @@ import 'student_classroom.dart';
 
 class LiveClassesPage extends StatefulWidget {
   const LiveClassesPage(
-      {super.key, required this.token, this.courseId, this.api});
+      {super.key,
+      required this.token,
+      this.courseId,
+      this.api,
+      this.embedded = false});
   final String token;
+  final bool embedded;
   final String? courseId;
   final LiveApi? api;
   @override
@@ -79,26 +84,28 @@ class _LiveClassesPageState extends State<LiveClassesPage>
         .toList();
     return Scaffold(
       backgroundColor: canvas,
-      appBar: AppBar(
-          title: const Text('Live Classes'),
-          backgroundColor: canvas,
-          surfaceTintColor: canvas,
-          actions: [
-            IconButton(
-                tooltip: 'Attendance history',
-                icon: const Icon(Icons.history_rounded),
-                onPressed: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                        builder: (_) => LiveAttendancePage(api: api)))),
-            IconButton(
-                tooltip: 'Class notifications',
-                icon: const Icon(Icons.notifications_none_rounded),
-                onPressed: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                        builder: (_) => LiveNotificationsPage(api: api))))
-          ]),
+      appBar: widget.embedded
+          ? null
+          : AppBar(
+              title: const Text('Live Classes'),
+              backgroundColor: canvas,
+              surfaceTintColor: canvas,
+              actions: [
+                  IconButton(
+                      tooltip: 'Attendance history',
+                      icon: const Icon(Icons.history_rounded),
+                      onPressed: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                              builder: (_) => LiveAttendancePage(api: api)))),
+                  IconButton(
+                      tooltip: 'Class notifications',
+                      icon: const Icon(Icons.notifications_none_rounded),
+                      onPressed: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                              builder: (_) => LiveNotificationsPage(api: api))))
+                ]),
       body: RefreshIndicator(
           onRefresh: load,
           child: ListView(padding: const EdgeInsets.all(20), children: [

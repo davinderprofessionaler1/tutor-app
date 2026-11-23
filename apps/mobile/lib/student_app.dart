@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:ui' show ImageFilter;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -7,6 +6,9 @@ import 'package:flutter/services.dart';
 import 'api.dart';
 import 'models.dart';
 import 'live/live_classes_page.dart';
+import 'live/live_api.dart';
+
+part 'academic_ui.dart';
 
 const primary = Color(0xFF006D2F);
 const accent = Color(0xFF25D366);
@@ -88,9 +90,9 @@ class _StudentAppState extends State<StudentApp> with WidgetsBindingObserver {
           theme: ThemeData(
             useMaterial3: true,
             scaffoldBackgroundColor: canvas,
-            fontFamily: 'sans-serif',
+            fontFamily: 'RobotoFlex',
             colorScheme: ColorScheme.fromSeed(
-                seedColor: accent, primary: primary, surface: canvas),
+                seedColor: primary, primary: primary, surface: canvas),
             textTheme: const TextTheme(
               headlineLarge: TextStyle(
                   fontSize: 28, fontWeight: FontWeight.w700, color: ink),
@@ -101,6 +103,27 @@ class _StudentAppState extends State<StudentApp> with WidgetsBindingObserver {
               bodyLarge: TextStyle(fontSize: 16, height: 1.45, color: ink),
               bodyMedium: TextStyle(fontSize: 14, height: 1.42, color: ink),
             ),
+            appBarTheme: const AppBarTheme(
+                backgroundColor: canvas,
+                surfaceTintColor: Colors.transparent,
+                foregroundColor: ink,
+                elevation: 0,
+                titleTextStyle: TextStyle(
+                    fontFamily: 'RobotoFlex',
+                    fontSize: 20,
+                    fontWeight: FontWeight.w700,
+                    color: ink)),
+            filledButtonTheme: FilledButtonThemeData(
+                style: FilledButton.styleFrom(
+                    backgroundColor: primary,
+                    foregroundColor: Colors.white,
+                    minimumSize: const Size(48, 52),
+                    textStyle: const TextStyle(
+                        fontFamily: 'RobotoFlex',
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12)))),
             inputDecorationTheme: InputDecorationTheme(
               filled: true,
               fillColor: Colors.white,
@@ -111,19 +134,12 @@ class _StudentAppState extends State<StudentApp> with WidgetsBindingObserver {
                   borderSide: const BorderSide(color: Color(0xFFBBCBB9))),
               focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: accent, width: 2)),
+                  borderSide: const BorderSide(color: teal, width: 2)),
               border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
                   borderSide: const BorderSide(color: line)),
             ),
           ),
-          builder: (context, child) {
-            final media = MediaQuery.of(context);
-            return MediaQuery(
-              data: media.copyWith(textScaler: TextScaler.noScaling),
-              child: child!,
-            );
-          },
           home: token == null
               ? LoginScreen(message: loginMessage, onSignedIn: signedIn)
               : StudentShell(token: token!, onLogout: signedOut),
@@ -154,6 +170,8 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen> {
   final email = TextEditingController(), otp = TextEditingController();
   bool codeSent = false, loading = false;
+  int resendSeconds = 0;
+  Timer? resendTimer;
   String? error, notice;
 
   @override
@@ -164,12 +182,14 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   void dispose() {
+    resendTimer?.cancel();
     email.dispose();
     otp.dispose();
     super.dispose();
   }
 
   Future<void> requestCode() async {
+    if (loading || resendSeconds > 0) return;
     if (!email.text.contains('@')) {
       setState(() => error = 'Enter your work email address.');
       return;
@@ -184,6 +204,16 @@ class _LoginScreenState extends State<LoginScreen> {
         setState(() {
           codeSent = true;
           notice = message;
+          resendSeconds = 60;
+        });
+        resendTimer?.cancel();
+        resendTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+          if (!mounted) {
+            timer.cancel();
+            return;
+          }
+          setState(() => resendSeconds--);
+          if (resendSeconds <= 0) timer.cancel();
         });
       }
     } on ApiFailure catch (failure) {
@@ -194,6 +224,7 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> verify() async {
+    if (loading) return;
     if (otp.text.trim().length != 6) {
       setState(() => error = 'Enter the 6-digit code from your email.');
       return;
@@ -214,149 +245,24 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   @override
-  Widget build(BuildContext context) {
-    final brand = BrandingScope.of(context);
-    return Scaffold(
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
-          child: Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 440),
-              child: Column(children: [
-                Container(
-                  width: 110,
-                  height: 5,
-                  margin: const EdgeInsets.only(bottom: 58),
-                  decoration: BoxDecoration(
-                      color: const Color(0xFFD9E4EC),
-                      borderRadius: BorderRadius.circular(20)),
-                ),
-                const Brand(hero: true),
-                const SizedBox(height: 32),
-                Text(
-                    codeSent
-                        ? 'Check your email'
-                        : 'Welcome to ${brand.appName}',
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                        fontSize: 28, fontWeight: FontWeight.w700)),
-                const SizedBox(height: 10),
-                Text(
-                  codeSent
-                      ? 'Enter the secure code sent to ${email.text.trim()}'
-                      : 'Access your company training & assigned video tutorials',
-                  textAlign: TextAlign.center,
-                  style:
-                      const TextStyle(color: Color(0xFF3C4A3D), height: 1.45),
-                ),
-                const SizedBox(height: 34),
-                SurfaceCard(
-                  padding: const EdgeInsets.all(22),
-                  child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Text(codeSent
-                            ? '6-Digit Access Code'
-                            : 'Work Email or Corporate ID'),
-                        const SizedBox(height: 8),
-                        TextField(
-                          controller: codeSent ? otp : email,
-                          autofocus: codeSent,
-                          keyboardType: codeSent
-                              ? TextInputType.number
-                              : TextInputType.emailAddress,
-                          maxLength: codeSent ? 6 : null,
-                          textAlign:
-                              codeSent ? TextAlign.center : TextAlign.start,
-                          style: TextStyle(
-                              fontSize: codeSent ? 22 : 15,
-                              letterSpacing: codeSent ? 8 : 0,
-                              fontWeight:
-                                  codeSent ? FontWeight.w700 : FontWeight.w400),
-                          decoration: InputDecoration(
-                            counterText: '',
-                            hintText: codeSent
-                                ? '• • • • • •'
-                                : 'company.email@organization.com',
-                            prefixIcon: Icon(codeSent
-                                ? Icons.lock_outline_rounded
-                                : Icons.mail_outline_rounded),
-                          ),
-                        ),
-                        if (!codeSent) ...[
-                          const SizedBox(height: 14),
-                          const Row(children: [
-                            Icon(Icons.verified_user_outlined,
-                                size: 18, color: teal),
-                            SizedBox(width: 7),
-                            Expanded(
-                              child: Text(
-                                  'You’ll stay signed in until you log out.',
-                                  style: TextStyle(color: muted, fontSize: 12)),
-                            ),
-                          ]),
-                        ],
-                        if (error != null) Message(error!, error: true),
-                        if (notice != null) Message(notice!),
-                        const SizedBox(height: 18),
-                        FilledButton.icon(
-                          onPressed: loading
-                              ? null
-                              : codeSent
-                                  ? verify
-                                  : requestCode,
-                          style: FilledButton.styleFrom(
-                            minimumSize: const Size.fromHeight(54),
-                            backgroundColor: accent,
-                            foregroundColor: Colors.white,
-                            shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12)),
-                          ),
-                          iconAlignment: IconAlignment.end,
-                          icon: loading
-                              ? const SizedBox(
-                                  width: 20,
-                                  height: 20,
-                                  child: CircularProgressIndicator(
-                                      color: Colors.white, strokeWidth: 2.4))
-                              : const Icon(Icons.arrow_forward_rounded),
-                          label: Text(
-                              codeSent ? 'Verify & Login' : 'Email Login Code'),
-                        ),
-                        if (codeSent)
-                          TextButton(
-                              onPressed: () => setState(() {
-                                    codeSent = false;
-                                    otp.clear();
-                                    error = notice = null;
-                                  }),
-                              child: const Text('Use a different email')),
-                      ]),
-                ),
-                const SizedBox(height: 34),
-                const MetaChip(
-                    icon: Icons.apartment_rounded,
-                    label: 'Enterprise Managed Workspace'),
-                const SizedBox(height: 18),
-                const Text(
-                    'Assigned by your organization or institute.\nNo self-registration needed.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(color: muted, height: 1.45)),
-                const SizedBox(height: 18),
-                const Row(mainAxisSize: MainAxisSize.min, children: [
-                  Icon(Icons.help_outline_rounded, size: 18, color: teal),
-                  SizedBox(width: 7),
-                  Text('Need help logging in?',
-                      style: TextStyle(color: deepGreen))
-                ]),
-              ]),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
+  Widget build(BuildContext context) => _AcademicLogin(
+        email: email,
+        otp: otp,
+        codeSent: codeSent,
+        loading: loading,
+        error: error,
+        notice: notice,
+        resendSeconds: resendSeconds,
+        onSubmit: codeSent ? verify : requestCode,
+        onResend: requestCode,
+        onEditEmail: () => setState(() {
+          codeSent = false;
+          otp.clear();
+          error = notice = null;
+          resendTimer?.cancel();
+          resendSeconds = 0;
+        }),
+      );
 }
 
 class StudentShell extends StatefulWidget {
@@ -375,6 +281,10 @@ class _StudentShellState extends State<StudentShell>
   Student? student;
   List<Tutorial> tutorials = [];
   List<Tutorial> featuredTutorials = [];
+  List<LiveClass> liveClasses = [];
+  int unreadNotifications = 0;
+  bool liveLoading = true, liveRefreshing = false;
+  String? liveError;
   bool loading = true;
   String? accessMessage, accessCode;
   int tab = 0;
@@ -387,7 +297,11 @@ class _StudentShellState extends State<StudentShell>
     api = StudentApi(token: widget.token);
     pageController = PageController();
     refresh();
-    timer = Timer.periodic(const Duration(seconds: 15), (_) => checkAccess());
+    loadLiveSummary();
+    timer = Timer.periodic(const Duration(seconds: 15), (_) {
+      checkAccess();
+      loadLiveSummary();
+    });
   }
 
   @override
@@ -400,7 +314,50 @@ class _StudentShellState extends State<StudentShell>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) refresh();
+    if (state == AppLifecycleState.resumed) {
+      refresh();
+      loadLiveSummary();
+    }
+  }
+
+  Future<void> loadLiveSummary() async {
+    if (liveRefreshing) return;
+    liveRefreshing = true;
+    final live = LiveApi(widget.token);
+    try {
+      final values = await live.classes();
+      if (mounted) {
+        setState(() {
+          liveClasses = values;
+          liveLoading = false;
+          liveError = null;
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          liveLoading = false;
+          liveError = 'Live sessions could not be refreshed.';
+        });
+      }
+    } finally {
+      liveRefreshing = false;
+    }
+    try {
+      final response = await live.request('/notifications');
+      final count = (response['data'] as List)
+          .where((value) => value['read'] != true)
+          .length;
+      if (mounted) setState(() => unreadNotifications = count);
+    } catch (_) {/* Keep the last known notification count. */}
+  }
+
+  Future<void> openNotifications() async {
+    await Navigator.push(
+        context,
+        MaterialPageRoute(
+            builder: (_) => LiveNotificationsPage(api: LiveApi(widget.token))));
+    await loadLiveSummary();
   }
 
   Future<void> checkAccess() async {
@@ -572,9 +529,18 @@ class _StudentShellState extends State<StudentShell>
           student: student!,
           tutorials: tutorials,
           featuredTutorials: featuredTutorials,
-          onRefresh: refresh,
-          onCourses: () => selectTab(1)),
+          onRefresh: () async {
+            await Future.wait([refresh(), loadLiveSummary()]);
+          },
+          onCourses: () => selectTab(1),
+          sessions: liveClasses,
+          liveApi: LiveApi(widget.token),
+          liveLoading: liveLoading,
+          liveError: liveError,
+          onLiveRetry: loadLiveSummary,
+          onLiveClasses: () => selectTab(2)),
       CoursesTab(tutorials: tutorials, onRefresh: refresh),
+      LiveClassesPage(token: widget.token, embedded: true),
       ProfileTab(
           student: student!,
           tutorials: tutorials,
@@ -583,7 +549,7 @@ class _StudentShellState extends State<StudentShell>
     ];
     return Scaffold(
       key: scaffoldKey,
-      extendBody: true,
+      extendBody: false,
       drawer: AppDrawer(
         student: student!,
         selected: tab,
@@ -593,7 +559,7 @@ class _StudentShellState extends State<StudentShell>
         },
         onSettings: () {
           Navigator.pop(context);
-          selectTab(2);
+          selectTab(3);
         },
         onHelp: () {
           Navigator.pop(context);
@@ -604,29 +570,20 @@ class _StudentShellState extends State<StudentShell>
           confirmLogout();
         },
       ),
-      appBar: AppBar(
-        toolbarHeight: 72,
-        elevation: 0,
-        backgroundColor: canvas,
-        surfaceTintColor: canvas,
-        centerTitle: true,
-        leading: IconButton(
-            tooltip: 'Open menu',
-            onPressed: () => scaffoldKey.currentState?.openDrawer(),
-            icon: const Icon(Icons.menu_rounded, color: ink)),
-        title: const Brand(
-            compact: true,
-            showName: false,
-            background: false,
-            width: 112,
-            height: 56),
-        actions: [
-          IconButton(
-              tooltip: 'Log out',
-              onPressed: confirmLogout,
-              icon: const Icon(Icons.logout_rounded)),
-          const SizedBox(width: 5),
-        ],
+      appBar: _AcademicAppBar(
+        title: ['Home', 'My Courses', 'Live Classes', 'Profile'][tab],
+        student: student!,
+        unread: unreadNotifications,
+        onMenu: () => scaffoldKey.currentState?.openDrawer(),
+        onNotifications: openNotifications,
+        onProfile: () => selectTab(3),
+        onHistory: tab == 2
+            ? () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                    builder: (_) =>
+                        LiveAttendancePage(api: LiveApi(widget.token))))
+            : null,
       ),
       body: Column(
         children: [
@@ -897,132 +854,6 @@ String supportDate(String value) {
   final date = DateTime.tryParse(value)?.toLocal();
   if (date == null) return '';
   return '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year} ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
-}
-
-class HomeTab extends StatelessWidget {
-  const HomeTab(
-      {super.key,
-      required this.student,
-      required this.tutorials,
-      required this.featuredTutorials,
-      required this.onRefresh,
-      required this.onCourses});
-  final Student student;
-  final List<Tutorial> tutorials;
-  final List<Tutorial> featuredTutorials;
-  final Future<void> Function() onRefresh;
-  final VoidCallback onCourses;
-
-  @override
-  Widget build(BuildContext context) {
-    return RefreshIndicator(
-      color: accent,
-      onRefresh: onRefresh,
-      child: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 116),
-        children: [
-          Row(children: [
-            const Icon(Icons.light_mode_outlined, color: teal, size: 27),
-            const SizedBox(width: 9),
-            Expanded(
-                child: Text('Good Morning, ${student.firstName} 👋',
-                    style: const TextStyle(
-                        fontSize: 21, fontWeight: FontWeight.w700))),
-            const StatusPill(label: 'Live Track'),
-          ]),
-          const SizedBox(height: 7),
-          Text('You have ${tutorials.length} assigned courses in progress',
-              style: const TextStyle(fontSize: 14)),
-          const SizedBox(height: 24),
-          if (featuredTutorials.isNotEmpty) ...[
-            FeaturedCourseSlider(
-                tutorials: featuredTutorials, assignedTutorials: tutorials),
-            const SizedBox(height: 28),
-          ],
-          SectionHeader(
-              title: 'Recently Added Tutorials',
-              action: 'View All',
-              onTap: onCourses),
-          const SizedBox(height: 13),
-          if (tutorials.isEmpty)
-            const EmptyTutorials()
-          else
-            SizedBox(
-              height: 236,
-              child: ListView.separated(
-                scrollDirection: Axis.horizontal,
-                itemCount: tutorials.length,
-                separatorBuilder: (_, __) => const SizedBox(width: 14),
-                itemBuilder: (_, index) =>
-                    CompactCard(tutorial: tutorials[index], index: index),
-              ),
-            ),
-          const SizedBox(height: 30),
-          SectionHeader(
-              title: 'Continue Watching',
-              badge: '${tutorials.length} in progress',
-              action: 'Manage',
-              onTap: onCourses),
-          const SizedBox(height: 13),
-          ...tutorials.take(2).toList().asMap().entries.map(
-              (entry) => ContinueCard(tutorial: entry.value, index: entry.key)),
-        ],
-      ),
-    );
-  }
-}
-
-class CoursesTab extends StatelessWidget {
-  const CoursesTab(
-      {super.key, required this.tutorials, required this.onRefresh});
-  final List<Tutorial> tutorials;
-  final Future<void> Function() onRefresh;
-  @override
-  Widget build(BuildContext context) => RefreshIndicator(
-        color: accent,
-        onRefresh: onRefresh,
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 116),
-          children: [
-            const Text('✓  VERIFIED CURRICULUM',
-                style: TextStyle(
-                    fontSize: 10,
-                    color: deepGreen,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: .5)),
-            const SizedBox(height: 6),
-            const Text('My Courses',
-                style: TextStyle(fontSize: 27, fontWeight: FontWeight.w700)),
-            const Text('Assigned by your learning & development team',
-                style: TextStyle(color: muted, fontSize: 13)),
-            const SizedBox(height: 18),
-            TextField(
-              readOnly: true,
-              decoration: InputDecoration(
-                hintText: 'Search your assigned courses...',
-                prefixIcon: const Icon(Icons.search_rounded),
-                enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(999),
-                    borderSide: BorderSide.none),
-              ),
-            ),
-            const SizedBox(height: 12),
-            Row(children: [
-              FilterPill(label: 'All (${tutorials.length})', active: true),
-              const SizedBox(width: 8),
-              FilterPill(label: 'In Progress (${tutorials.length})'),
-              const SizedBox(width: 8),
-              const FilterPill(label: 'Completed (0)'),
-            ]),
-            const SizedBox(height: 16),
-            if (tutorials.isEmpty)
-              const EmptyTutorials()
-            else
-              ...tutorials.asMap().entries.map((entry) =>
-                  CourseCard(tutorial: entry.value, index: entry.key)),
-          ],
-        ),
-      );
 }
 
 class TutorialPage extends StatefulWidget {
@@ -1539,10 +1370,11 @@ class _ProfileTabState extends State<ProfileTab> {
                 icon: Icons.verified_user_outlined,
                 label: 'Active Learner • Learning Workspace'),
             const SizedBox(height: 13),
-            const Text('Company Learning & Development Institute',
-                textAlign: TextAlign.center, style: TextStyle(color: muted)),
+            Text(BrandingScope.of(context).siteName,
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: muted)),
             const SizedBox(height: 16),
-            const StatusPill(label: 'Learning Streak: 14 Days Active'),
+            const StatusPill(label: 'Student account'),
           ]),
         ),
         const SizedBox(height: 18),
@@ -1553,13 +1385,16 @@ class _ProfileTabState extends State<ProfileTab> {
           const SizedBox(width: 10),
           Expanded(
               child: MetricCard(
-                  value: '${widget.tutorials.length ~/ 2}',
+                  value:
+                      '${widget.tutorials.where((value) => value.progressPercent >= 100).length}',
                   label: 'Completed',
                   highlighted: true)),
           const SizedBox(width: 10),
           Expanded(
               child: MetricCard(
-                  value: '${widget.tutorials.length}', label: 'In Progress')),
+                  value:
+                      '${widget.tutorials.where((value) => value.progressPercent < 100).length}',
+                  label: 'In Progress')),
         ]),
         const SizedBox(height: 18),
         SurfaceCard(
@@ -1616,378 +1451,6 @@ class _ProfileTabState extends State<ProfileTab> {
           ]),
         ),
       ],
-    );
-  }
-}
-
-class FeaturedCourseSlider extends StatefulWidget {
-  const FeaturedCourseSlider(
-      {super.key, required this.tutorials, required this.assignedTutorials});
-  final List<Tutorial> tutorials;
-  final List<Tutorial> assignedTutorials;
-
-  @override
-  State<FeaturedCourseSlider> createState() => _FeaturedCourseSliderState();
-}
-
-class _FeaturedCourseSliderState extends State<FeaturedCourseSlider> {
-  late final PageController controller;
-  int selected = 0;
-
-  @override
-  void initState() {
-    super.initState();
-    controller = PageController(viewportFraction: .96);
-  }
-
-  @override
-  void dispose() {
-    controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) => SizedBox(
-        height: widget.tutorials.length > 1 ? 274 : 252,
-        child: Column(children: [
-          Expanded(
-            child: PageView.builder(
-              controller: controller,
-              itemCount: widget.tutorials.length,
-              onPageChanged: (index) => setState(() => selected = index),
-              itemBuilder: (context, index) {
-                final featured = widget.tutorials[index];
-                final assigned = widget.assignedTutorials
-                    .where((tutorial) => tutorial.id == featured.id)
-                    .firstOrNull;
-                return Padding(
-                  padding: EdgeInsets.only(
-                      right: widget.tutorials.length > 1 ? 10 : 0),
-                  child: FeaturedCourse(
-                      tutorial: assigned ?? featured,
-                      assigned: assigned != null),
-                );
-              },
-            ),
-          ),
-          if (widget.tutorials.length > 1) ...[
-            const SizedBox(height: 12),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: List.generate(
-                widget.tutorials.length,
-                (index) => GestureDetector(
-                  onTap: () => controller.animateToPage(index,
-                      duration: const Duration(milliseconds: 320),
-                      curve: Curves.easeInOutCubic),
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 220),
-                    width: selected == index ? 22 : 7,
-                    height: 7,
-                    margin: const EdgeInsets.symmetric(horizontal: 3),
-                    decoration: BoxDecoration(
-                      color: selected == index ? deepGreen : paleBlue,
-                      borderRadius: BorderRadius.circular(99),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ]),
-      );
-}
-
-class FeaturedCourse extends StatelessWidget {
-  const FeaturedCourse(
-      {super.key, required this.tutorial, required this.assigned});
-  final Tutorial tutorial;
-  final bool assigned;
-  @override
-  Widget build(BuildContext context) => ClipRRect(
-        borderRadius: BorderRadius.circular(22),
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            CourseImage(tutorial: tutorial),
-            const DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    Color(0x26000000),
-                    Colors.transparent,
-                    Color(0x42000000),
-                  ],
-                  stops: [0, .52, 1],
-                ),
-              ),
-            ),
-            Positioned(
-              left: 14,
-              top: 14,
-              child: Semantics(
-                label: 'Featured course',
-                child: Container(
-                  width: 38,
-                  height: 38,
-                  decoration: BoxDecoration(
-                    color: const Color(0xCC102A22),
-                    shape: BoxShape.circle,
-                    border: Border.all(color: const Color(0x66FFFFFF)),
-                  ),
-                  child: const Icon(Icons.auto_awesome_rounded,
-                      color: Color(0xFFC9F7D7), size: 20),
-                ),
-              ),
-            ),
-            Positioned(
-              left: 0,
-              right: 0,
-              bottom: 0,
-              child: ClipRect(
-                child: BackdropFilter(
-                  filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
-                  child: Container(
-                    padding: const EdgeInsets.fromLTRB(16, 14, 12, 14),
-                    decoration: const BoxDecoration(
-                      color: Color(0x8A10211B),
-                      border: Border(
-                        top: BorderSide(color: Color(0x33FFFFFF)),
-                      ),
-                    ),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        Expanded(
-                          child: Text(
-                            tutorial.title,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 19,
-                              height: 1.15,
-                              fontWeight: FontWeight.w700,
-                              shadows: [
-                                Shadow(color: Color(0x66000000), blurRadius: 8),
-                              ],
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        FilledButton(
-                          onPressed: () => openCourse(context, tutorial),
-                          style: FilledButton.styleFrom(
-                            backgroundColor: const Color(0xFFC9F7D7),
-                            foregroundColor: const Color(0xFF143D2D),
-                            elevation: 0,
-                            minimumSize: const Size(92, 44),
-                            padding: const EdgeInsets.symmetric(horizontal: 16),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(13),
-                            ),
-                          ),
-                          child: const Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text('View',
-                                  style:
-                                      TextStyle(fontWeight: FontWeight.w800)),
-                              SizedBox(width: 7),
-                              Icon(Icons.arrow_forward_rounded, size: 18),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
-      );
-}
-
-class CompactCard extends StatelessWidget {
-  const CompactCard({super.key, required this.tutorial, required this.index});
-  final Tutorial tutorial;
-  final int index;
-  @override
-  Widget build(BuildContext context) => SizedBox(
-        width: 235,
-        child: SurfaceCard(
-          padding: const EdgeInsets.all(10),
-          onTap: () => openCourse(context, tutorial),
-          child:
-              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Stack(alignment: Alignment.center, children: [
-              ClipRRect(
-                  borderRadius: BorderRadius.circular(14),
-                  child: SizedBox(
-                      width: double.infinity,
-                      height: 132,
-                      child: CourseImage(tutorial: tutorial))),
-              const CircleAvatar(
-                  radius: 24,
-                  backgroundColor: Colors.white,
-                  foregroundColor: primary,
-                  child: Icon(Icons.play_arrow_rounded))
-            ]),
-            const SizedBox(height: 10),
-            Text(tutorial.category.toUpperCase(),
-                style: const TextStyle(
-                    color: teal, fontWeight: FontWeight.w700, fontSize: 10)),
-            const SizedBox(height: 4),
-            Text(tutorial.title,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontWeight: FontWeight.w700)),
-            const Spacer(),
-            Text(index == 0 ? 'Added today' : 'Recently assigned',
-                style: const TextStyle(color: muted, fontSize: 12))
-          ]),
-        ),
-      );
-}
-
-class ContinueCard extends StatelessWidget {
-  const ContinueCard({super.key, required this.tutorial, required this.index});
-  final Tutorial tutorial;
-  final int index;
-  @override
-  Widget build(BuildContext context) {
-    final progress = tutorial.progressPercent / 100;
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 14),
-      child: SurfaceCard(
-        onTap: () => openCourse(context, tutorial),
-        child: Column(children: [
-          Row(children: [
-            ClipRRect(
-                borderRadius: BorderRadius.circular(14),
-                child: SizedBox(
-                    width: 104,
-                    height: 86,
-                    child: CourseImage(tutorial: tutorial))),
-            const SizedBox(width: 14),
-            Expanded(
-                child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                  Text(tutorial.category,
-                      style: const TextStyle(color: teal, fontSize: 11)),
-                  Text(tutorial.title,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontWeight: FontWeight.w700)),
-                  const SizedBox(height: 9),
-                  Text(
-                      '${tutorial.completedVideoCount} of ${tutorial.videoCount} videos completed',
-                      style: const TextStyle(fontSize: 11))
-                ])),
-            Text('${(progress * 100).round()}%',
-                style: const TextStyle(
-                    color: primary, fontWeight: FontWeight.w700))
-          ]),
-          const SizedBox(height: 13),
-          ProgressBar(value: progress),
-          const SizedBox(height: 13),
-          Row(children: [
-            Expanded(
-                child: Text('Next: ${nextLesson(tutorial)}',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(color: muted, fontSize: 12))),
-            FilledButton.icon(
-                onPressed: () => openCourse(context, tutorial),
-                style: FilledButton.styleFrom(
-                    backgroundColor: accent, foregroundColor: ink),
-                icon: const Icon(Icons.play_arrow_rounded, size: 18),
-                label: const Text('Resume'))
-          ])
-        ]),
-      ),
-    );
-  }
-}
-
-class CourseCard extends StatelessWidget {
-  const CourseCard({super.key, required this.tutorial, required this.index});
-  final Tutorial tutorial;
-  final int index;
-  @override
-  Widget build(BuildContext context) {
-    final progress = tutorial.progressPercent / 100;
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 16),
-      child: SurfaceCard(
-        padding: EdgeInsets.zero,
-        onTap: () => openCourse(context, tutorial),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Stack(children: [
-            Hero(
-                tag: 'course-${tutorial.id}',
-                child: ClipRRect(
-                    borderRadius:
-                        const BorderRadius.vertical(top: Radius.circular(16)),
-                    child: SizedBox(
-                        width: double.infinity,
-                        height: 152,
-                        child: CourseImage(tutorial: tutorial)))),
-            const Positioned(
-                top: 12, right: 12, child: StatusPill(label: 'Assigned')),
-            Positioned(
-                left: 12,
-                bottom: 10,
-                child: MetaChip(
-                    label:
-                        '${tutorial.videoCount} Videos • ${courseDuration(tutorial)} min'))
-          ]),
-          Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(tutorial.category,
-                        style: const TextStyle(color: teal, fontSize: 11)),
-                    const SizedBox(height: 4),
-                    Text(tutorial.title,
-                        style: const TextStyle(
-                            fontSize: 18, fontWeight: FontWeight.w700)),
-                    const SizedBox(height: 14),
-                    Row(children: [
-                      const Text('Overall Progress',
-                          style: TextStyle(fontSize: 11)),
-                      const Spacer(),
-                      Text('${(progress * 100).round()}% completed',
-                          style: const TextStyle(color: primary, fontSize: 11))
-                    ]),
-                    const SizedBox(height: 7),
-                    ProgressBar(value: progress),
-                    const SizedBox(height: 12),
-                    Row(children: [
-                      Icon(
-                          progress == 1
-                              ? Icons.workspace_premium_outlined
-                              : Icons.schedule_rounded,
-                          size: 17,
-                          color: muted),
-                      const SizedBox(width: 6),
-                      Text(progress == 1 ? 'Certificate Earned' : 'In progress',
-                          style: const TextStyle(color: muted, fontSize: 12)),
-                      const Spacer(),
-                      FilledButton(
-                          onPressed: () => openCourse(context, tutorial),
-                          style: FilledButton.styleFrom(
-                              backgroundColor: accent, foregroundColor: ink),
-                          child: Text(progress == 1 ? 'Review' : 'Resume  →'))
-                    ])
-                  ]))
-        ]),
-      ),
     );
   }
 }
@@ -2099,13 +1562,8 @@ class AppDrawer extends StatelessWidget {
             DrawerMenuItem(
               icon: Icons.video_camera_front_outlined,
               label: 'Live Classes',
-              onTap: () async {
-                final token = await native.invokeMethod<String>('readToken');
-                if (!context.mounted || token == null) return;
-                final navigator = Navigator.of(context);
-                navigator.pop();
-                await navigator.push(MaterialPageRoute(builder: (_) => LiveClassesPage(token: token)));
-              },
+              selected: selected == 2,
+              onTap: () => onNavigate(2),
             ),
             DrawerMenuItem(
               icon: Icons.support_agent_outlined,
@@ -2171,87 +1629,6 @@ class DrawerMenuItem extends StatelessWidget {
       ),
     );
   }
-}
-
-class FloatingNav extends StatelessWidget {
-  const FloatingNav(
-      {super.key, required this.selected, required this.onSelected});
-  final int selected;
-  final ValueChanged<int> onSelected;
-  @override
-  Widget build(BuildContext context) => SafeArea(
-        minimum: const EdgeInsets.fromLTRB(16, 0, 16, 14),
-        child: Container(
-          height: 68,
-          padding: const EdgeInsets.all(7),
-          decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: .95),
-              borderRadius: BorderRadius.circular(999),
-              border: Border.all(color: line),
-              boxShadow: const [
-                BoxShadow(
-                    color: Color(0x14075E54),
-                    blurRadius: 26,
-                    offset: Offset(0, 9))
-              ]),
-          child: Row(children: [
-            NavItem(
-                icon: Icons.home_outlined,
-                label: 'Home',
-                active: selected == 0,
-                onTap: () => onSelected(0)),
-            NavItem(
-                icon: Icons.school_outlined,
-                label: 'My Courses',
-                active: selected == 1,
-                onTap: () => onSelected(1)),
-            NavItem(
-                icon: Icons.person_outline_rounded,
-                label: 'Profile',
-                active: selected == 2,
-                onTap: () => onSelected(2)),
-          ]),
-        ),
-      );
-}
-
-class NavItem extends StatelessWidget {
-  const NavItem(
-      {super.key,
-      required this.icon,
-      required this.label,
-      required this.active,
-      required this.onTap});
-  final IconData icon;
-  final String label;
-  final bool active;
-  final VoidCallback onTap;
-  @override
-  Widget build(BuildContext context) => Expanded(
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(999),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 180),
-            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 12),
-            decoration: BoxDecoration(
-                color: active ? const Color(0xFFE5FFE9) : Colors.transparent,
-                borderRadius: BorderRadius.circular(999)),
-            child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-              Icon(icon, size: 20, color: active ? primary : ink),
-              const SizedBox(width: 5),
-              Flexible(
-                  child: Text(label,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                          color: active ? primary : ink,
-                          fontSize: 11,
-                          fontWeight:
-                              active ? FontWeight.w600 : FontWeight.w400)))
-            ]),
-          ),
-        ),
-      );
 }
 
 class SurfaceCard extends StatelessWidget {
@@ -2404,26 +1781,6 @@ class MetaChip extends StatelessWidget {
       );
 }
 
-class FilterPill extends StatelessWidget {
-  const FilterPill({super.key, required this.label, this.active = false});
-  final String label;
-  final bool active;
-  @override
-  Widget build(BuildContext context) => Expanded(
-      child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 9, horizontal: 6),
-          decoration: BoxDecoration(
-              color: active ? deepGreen : Colors.white,
-              borderRadius: BorderRadius.circular(999),
-              border: Border.all(color: active ? deepGreen : line)),
-          child: Text(label,
-              textAlign: TextAlign.center,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                  color: active ? Colors.white : ink, fontSize: 10))));
-}
-
 class ProgressBar extends StatelessWidget {
   const ProgressBar({super.key, required this.value});
   final double value;
@@ -2433,7 +1790,7 @@ class ProgressBar extends StatelessWidget {
       child: LinearProgressIndicator(
           value: value,
           minHeight: 6,
-          color: accent,
+          color: primary,
           backgroundColor: const Color(0xFFDDE7EF)));
 }
 

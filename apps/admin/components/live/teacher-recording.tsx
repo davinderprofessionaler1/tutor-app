@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { Room } from "livekit-client";
 import { liveRequest } from "../../lib/live-client";
+import { useActionDialog } from "../action-dialog";
 
 // Browser recording uses the already approved classroom media. It never opens
 // another camera/microphone and does not require a paid recording service.
@@ -17,6 +18,7 @@ export function TeacherRecording({
   live: boolean;
   onActiveChange: (value: boolean) => void;
 }) {
+  const { confirm } = useActionDialog();
   const [consent, setConsent] = useState(false),
     [active, setActive] = useState(false),
     [busy, setBusy] = useState(false),
@@ -308,12 +310,16 @@ export function TeacherRecording({
             <button
               className="secondary-action"
               disabled={busy}
-              onClick={() => {
+              onClick={async () => {
                 if (
                   !clip.size ||
-                  window.confirm(
-                    "Discard this local clip? Save it first if you want to keep it.",
-                  )
+                  await confirm({
+                    title: "Discard local recording?",
+                    description: "Save this clip first if you want to keep it. Discarding the local copy cannot be undone.",
+                    confirmLabel: "Discard clip",
+                    cancelLabel: "Keep clip",
+                    tone: "danger",
+                  })
                 )
                   setClip(null);
               }}

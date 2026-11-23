@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Track, type Room } from "livekit-client";
+import { useActionDialog } from "../action-dialog";
 import type { ClassroomAdmission, ClassroomStudent } from "@tutor/contracts";
 
 function StudentVideo({ track, name }: { track: Track; name: string }) {
@@ -60,10 +61,10 @@ export function TeacherStudents({
   teacher: { name: string; camera?: Track; microphone: boolean };
   admission: ClassroomAdmission;
 }) {
+  const { confirm } = useActionDialog();
   const [query, setQuery] = useState(""),
     [filter, setFilter] = useState("all");
   const [pending, setPending] = useState<string | null>(null),
-    [ending, setEnding] = useState<ClassroomStudent | null>(null),
     [focused, setFocused] = useState<string | null>(null);
   const gallery = useRef<HTMLElement>(null);
   const [pinned, setPinned] = useState<string | null>(null),
@@ -423,7 +424,16 @@ export function TeacherStudents({
                     className="secondary-action live-end-student"
                     disabled={!live || student.sessionEnded || Boolean(pending)}
                     aria-label={`End ${student.name} session`}
-                    onClick={() => setEnding(student)}
+                    onClick={async () => {
+                      if (!await confirm({
+                        title: `End ${student.name}’s session?`,
+                        description: "They will be disconnected and cannot rejoin this class. The class continues for everyone else.",
+                        confirmLabel: "End student session",
+                        cancelLabel: "Keep in class",
+                        tone: "danger",
+                      })) return;
+                      await act(student, { action: "end-student-session", studentId: student.id });
+                    }}
                   >
                     {pending === student.id
                       ? "Updating…"
@@ -435,45 +445,6 @@ export function TeacherStudents({
           );
         })}
       </div>
-      {ending && (
-        <div className="modal-backdrop">
-          <section
-            className="resource-modal live-student-confirm"
-            role="dialog"
-            aria-modal="true"
-            aria-label="End student session"
-          >
-            <header>
-              <h2>End {ending.name}’s session?</h2>
-            </header>
-            <p>
-              They will be disconnected and cannot rejoin this class. The class
-              continues for everyone else.
-            </p>
-            <footer>
-              <button
-                className="secondary-action"
-                onClick={() => setEnding(null)}
-              >
-                Keep in class
-              </button>
-              <button
-                className="primary-action"
-                onClick={() => {
-                  const student = ending;
-                  setEnding(null);
-                  void act(student, {
-                    action: "end-student-session",
-                    studentId: student.id,
-                  });
-                }}
-              >
-                End student session
-              </button>
-            </footer>
-          </section>
-        </div>
-      )}
       {selected && (
         <div className="modal-backdrop">
           <section
