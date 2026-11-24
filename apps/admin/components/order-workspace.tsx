@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import { Icons } from "./icons";
 import { Topbar } from "./topbar";
 import { useToast } from "./toast";
+import { useActionDialog } from "./action-dialog";
 
 type OrderStatus = "Pending" | "Paid" | "Failed" | "Refunded" | "Cancelled";
 type Order = {
@@ -29,6 +30,7 @@ function statusClass(status: string) { return `order-status order-status-${statu
 
 export function OrderWorkspace() {
   const { showToast } = useToast();
+  const { confirm, prompt } = useActionDialog();
   const [orders, setOrders] = useState<Order[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
   const [courses, setCourses] = useState<Course[]>([]);
@@ -87,9 +89,11 @@ export function OrderWorkspace() {
   async function changeStatus(order: Order, nextStatus: OrderStatus) {
     let paymentReference = order.paymentReference;
     if (nextStatus === "Paid") {
-      paymentReference = window.prompt("Payment reference (optional for manual payments)", paymentReference) ?? "";
+      const reference = await prompt({ title: "Record payment", description: `Mark ${order.orderNumber} as paid. You can add a payment reference for your records.`, inputLabel: "Payment reference (optional for manual payments)", defaultValue: paymentReference, confirmLabel: "Mark as paid" });
+      if (reference === null) return;
+      paymentReference = reference;
     }
-    if (nextStatus === "Refunded" && !window.confirm(`Record a full refund for ${order.orderNumber}? Purchased course access created by this order will be revoked.`)) return;
+    if (nextStatus === "Refunded" && !await confirm({ title: "Record full refund?", description: `Purchased course access created by ${order.orderNumber} will be revoked.`, confirmLabel: "Record refund", tone: "danger" })) return;
     setPending(true);
     try {
       const result = await jsonResponse(await fetch("/api/admin/orders", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: order.id, status: nextStatus, paymentReference }) }));

@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import { Icons } from "./icons";
 import { Topbar } from "./topbar";
 import { useToast } from "./toast";
+import { useActionDialog } from "./action-dialog";
 
 type ResourceKind = "courses" | "videos" | "coupons" | "templates";
 type Item = Record<string, string | number | boolean> & { id: string; updatedAt: string };
@@ -67,6 +68,7 @@ async function jsonResponse(response: Response) {
 
 export function ResourceWorkspace({ kind }: { kind: ResourceKind }) {
   const { showToast } = useToast();
+  const { confirm } = useActionDialog();
   const config = configs[kind];
   const [items, setItems] = useState<Item[]>([]);
   const [loading, setLoading] = useState(true);
@@ -116,7 +118,7 @@ export function ResourceWorkspace({ kind }: { kind: ResourceKind }) {
 
   async function remove(item: Item) {
     const label = String(item.title ?? item.name ?? item.code ?? config.singular);
-    if (!window.confirm(`Delete ${label}? This cannot be undone.`)) return;
+    if (!await confirm({ title: `Delete ${config.singular}?`, description: `“${label}” will be permanently deleted. This cannot be undone.`, confirmLabel: `Delete ${config.singular}`, tone: "danger" })) return;
     try {
       await jsonResponse(await fetch(`/api/admin/resources/${kind}?id=${encodeURIComponent(item.id)}`, { method: "DELETE" }));
       setItems((current) => current.filter((record) => record.id !== item.id));
@@ -139,7 +141,7 @@ export function ResourceWorkspace({ kind }: { kind: ResourceKind }) {
   }
 
   async function removeSelected() {
-    if (!selected.size || !window.confirm(`Delete ${selected.size} selected coupons? This cannot be undone.`)) return;
+    if (!selected.size || !await confirm({ title: `Delete ${selected.size} coupons?`, description: "The selected coupons will be permanently deleted. This cannot be undone.", confirmLabel: "Delete coupons", tone: "danger" })) return;
     const ids = [...selected];
     try {
       await jsonResponse(await fetch(`/api/admin/resources/${kind}?ids=${encodeURIComponent(ids.join(","))}`, { method: "DELETE" }));

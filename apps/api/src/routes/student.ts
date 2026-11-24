@@ -4,6 +4,7 @@ import path from "node:path";
 import type { FastifyPluginAsync, FastifyRequest } from "fastify";
 import { z } from "zod";
 import { sendMail } from "../lib/smtp.js";
+import { purchasedLiveCourseIds } from "../live/store.js";
 
 type Student = { id: string; firstName: string; lastName: string; email: string; phone: string; status: "Active" | "Blocked"; courseIds: string[]; joinedAt: string; updatedAt: string };
 type Video = { id: string; title: string; provider: string; sourceUrl: string; durationMinutes: number; status: string };
@@ -65,7 +66,8 @@ async function currentStudent(request: FastifyRequest) {
   const student = store.students.find((item) => item.id === id);
   if (!student) return { error: "UNAUTHORIZED" as const };
   if (student.status === "Blocked") return { error: "STUDENT_BLOCKED" as const };
-  return { student, store };
+  const courseIds = [...new Set([...student.courseIds, ...await purchasedLiveCourseIds(student.id)])];
+  return { student, store, courseIds };
 }
 function publicStudent(student: Student) { return { id: student.id, firstName: student.firstName, lastName: student.lastName, email: student.email, phone: student.phone, status: student.status, courseIds: student.courseIds, joinedAt: student.joinedAt }; }
 function thumbnailUrl(request: FastifyRequest, value: string) {
@@ -154,7 +156,7 @@ export const studentRoutes: FastifyPluginAsync = async (app) => {
   app.get("/tutorials", async (request, reply) => {
     const auth = await currentStudent(request);
     if ("error" in auth) return reply.status(403).send({ error: auth.error === "STUDENT_BLOCKED" ? "Your account has been blocked." : "Please sign in.", code: auth.error });
-    const assigned = auth.store.courses.filter((course) => auth.student.courseIds.includes(course.id) && course.status === "Published").map((course) => {
+    const assigned = auth.store.courses.filter((course) => auth.courseIds.includes(course.id) && course.status === "Published").map((course) => {
       const summary = courseProgress(auth.store, auth.student.id, course);
       return {
         id: course.id, title: course.title, category: course.category, thumbnailUrl: thumbnailUrl(request, course.thumbnailUrl), lessons: course.lessons, featured: course.featured, ...summary,
@@ -171,7 +173,7 @@ export const studentRoutes: FastifyPluginAsync = async (app) => {
     if (!parsed.success) return reply.status(400).send({ error: "Choose a rating and write a short review." });
     const auth = await currentStudent(request);
     if ("error" in auth) return reply.status(403).send({ error: auth.error === "STUDENT_BLOCKED" ? "Your account has been blocked." : "Please sign in.", code: auth.error });
-    if (!auth.student.courseIds.includes(request.params.courseId)) return reply.status(403).send({ error: "Only assigned students can review this course." });
+    if (!auth.courseIds.includes(request.params.courseId)) return reply.status(403).send({ error: "Only assigned students can review this course." });
     const existing = auth.store.reviews.find((review) => review.courseId === request.params.courseId && review.studentId === auth.student.id);
     const submittedAt = new Date().toISOString();
     const review: Review = { id: existing?.id ?? randomBytes(16).toString("hex"), courseId: request.params.courseId, studentId: auth.student.id, studentName: `${auth.student.firstName} ${auth.student.lastName}`.trim(), rating: parsed.data.rating, comment: parsed.data.comment, status: "Pending", submittedAt, moderatedAt: "", updatedAt: submittedAt };
@@ -210,7 +212,7 @@ export const studentRoutes: FastifyPluginAsync = async (app) => {
     const auth = await currentStudent(request);
     if ("error" in auth) return reply.status(403).send({ error: auth.error === "STUDENT_BLOCKED" ? "Your account has been blocked." : "Please sign in.", code: auth.error });
     const video = auth.store.videos.find((item) => item.id === parsed.data.videoId && item.status === "Ready");
-    const assignedCourse = auth.store.courses.find((course) => auth.student.courseIds.includes(course.id) && course.chapters.some((chapter) => chapter.videoIds.includes(parsed.data.videoId)));
+    const assignedCourse = auth.store.courses.find((course) => auth.courseIds.includes(course.id) && course.chapters.some((chapter) => chapter.videoIds.includes(parsed.data.videoId)));
     if (!video || !assignedCourse) return reply.status(404).send({ error: "Assigned video not found." });
     const durationSeconds = Math.max(1, Math.round(parsed.data.durationSeconds || video.durationMinutes * 60));
     const rawPosition = Math.min(durationSeconds, Math.max(0, Math.round(parsed.data.positionSeconds)));
